@@ -4,6 +4,9 @@ Free local bridge: AI agents attach to your Chrome browser and read the active t
 read/write the clipboard, and inject text — with your explicit approval on every action.
 Version 0.3.0. Made by YardWork (https://yardwork.dev).
 
+**[Install from the Chrome Web Store](https://chromewebstore.google.com/detail/agentbridge-%E2%80%94-connect-ai/empaehmlgclgkljpjeaemefoeafalfal)** ·
+[MIT licensed](LICENSE) · [Protocol](PROTOCOL.md) · [Privacy](https://yardwork.dev/agentbridge/privacy.html)
+
 ## What it is
 
 AgentBridge is a Chrome extension (MV3) plus a tiny, zero-dependency Node WebSocket
@@ -35,6 +38,8 @@ Every agent action requires an explicit human approval in the extension.
   approves or denies each request. Nothing executes automatically.
 
 ## Install
+
+Two ways in: the **Chrome Web Store** (normal use), or loading this folder unpacked (development).
 
 1. **Load the unpacked extension**
    - Open `chrome://extensions`.
