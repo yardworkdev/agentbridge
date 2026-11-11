@@ -129,7 +129,17 @@ async function handleActionRequest(req) {
   if (typeof params.text === "string" && params.text.length > MAX_TEXT_BYTES) {
     params.text = params.text.slice(0, MAX_TEXT_BYTES);
   }
-  pendingApproval = { id: req.id, action: req.action, params, from: req.from || "unknown" };
+  // Pin the page the person is being asked about. Without this the action ran
+  // against whatever tab was in front when they clicked Approve, so approving
+  // while looking at page A could type into page B.
+  const target = await captureTarget();
+  pendingApproval = {
+    id: req.id,
+    action: req.action,
+    params,
+    from: req.from || "unknown",
+    target,
+  };
   console.log("[trace] pending set:", req.id, req.action, "from", pendingApproval.from);
   startApprovalTimeout(req.id);
   showApprovalNotification(req);
@@ -146,6 +156,25 @@ async function handleActionRequest(req) {
       // openPopup may fail if a popup is already open or in some contexts.
     }
   });
+}
+
+/**
+ * The tab a request is about, captured when the request arrives.
+ * @returns {Promise<{tabId:number,url:string,title:string,host:string}|null>}
+ */
+async function captureTarget() {
+  try {
+    const tab = await getActiveTab();
+    let host = "";
+    try {
+      host = new URL(tab.url || "").host || "";
+    } catch {
+      host = tab.url || "";
+    }
+    return { tabId: tab.id, url: tab.url || "", title: tab.title || "", host };
+  } catch {
+    return null;
+  }
 }
 
 function startApprovalTimeout(id) {
@@ -186,16 +215,30 @@ function showApprovalNotification(req) {
 }
 
 /** Human-readable description of what the agent wants. */
+/**
+ * A payload is shown whole up to PREVIEW_CHARS and counted beyond it. A person
+ * used to see the first eighty characters of a payload and then approve the rest.
+ */
+const PREVIEW_CHARS = 200;
+
+function preview(text) {
+  const value = String(text ?? "");
+  const head = value.slice(0, PREVIEW_CHARS);
+  if (value.length <= head.length) return `"${value}"`;
+  return `"${head}" … (${value.length.toLocaleString()} characters)`;
+}
+
 function describeAction(req) {
+  const where = req.target?.host ? ` at ${req.target.host}` : "";
   switch (req.action) {
     case "readTab":
-      return "Read the title and URL of the active tab";
+      return `Read the title and URL of the page${where}`;
     case "readClipboard":
-      return "Read your clipboard text";
+      return `Read your clipboard text${where}`;
     case "writeClipboard":
-      return `Write to clipboard: "${String(req.params?.text ?? "").slice(0, 80)}"`;
+      return `Write to clipboard${where}: ${preview(req.params?.text)}`;
     case "inject":
-      return `Type text into the focused field: "${String(req.params?.text ?? "").slice(0, 80)}"`;
+      return `Type into the focused field of the page${where}: ${preview(req.params?.text)}`;
     default:
       return `Unknown action "${req.action}"`;
   }
@@ -270,17 +313,22 @@ function denyPending() {
  * @returns {Promise<object>} data for the result message
  */
 async function executeAction(req) {
+  const target = req.target;
   switch (req.action) {
     case "readTab":
-      return readActiveTab();
+      return readTab(target);
     case "readClipboard":
-      return readClipboard();
+      return readClipboard(target);
     case "writeClipboard":
-      await writeClipboard(String(req.params?.text ?? ""));
+      await writeClipboard(String(req.params?.text ?? ""), target);
       return { ok: true };
-    case "inject":
-      await injectText(String(req.params?.text ?? ""));
-      return { ok: true };
+    case "inject": {
+      const text = String(req.params?.text ?? "");
+      const result = await injectText(text, target);
+      // The answer is the measurement, not the intention: the field is checked
+      // after the write, and the agent is told what the page actually holds.
+      return { ok: true, characters: text.length, field: result.field };
+    }
     default:
       throw new Error(`unknown action: ${req.action}`);
   }
@@ -297,24 +345,52 @@ function sendResult(id, ok, dataOrError) {
   }
 }
 
-/** Get the active tab of the current window. */
+/** The active tab of the last focused normal window. */
 async function getActiveTab() {
-  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const win = await chrome.windows.getLastFocused({ windowTypes: ["normal"] });
+  const tabs = await chrome.tabs.query({ active: true, windowId: win.id });
   if (!tabs || tabs.length === 0) throw new Error("no active tab");
   return tabs[0];
 }
 
-async function readActiveTab() {
-  const tab = await getActiveTab();
+/**
+ * The tab the person was asked about, still showing the page it showed then.
+ * Without this check an approval answered after a tab switch acted on the new
+ * page — the prompt never named one, so the person had no way to know.
+ */
+async function targetTab(target) {
+  if (!target || typeof target.tabId !== "number") {
+    throw new Error("this request was not about a page; nothing was done");
+  }
+  let tab;
+  try {
+    tab = await chrome.tabs.get(target.tabId);
+  } catch {
+    throw new Error("that tab was closed; nothing was done");
+  }
+  if (target.url && tab.url !== target.url) {
+    throw new Error("the page changed since you were asked; nothing was done — ask again");
+  }
+  // Acting on a tab the person has since left is the same problem one step later:
+  // they approved while looking at one thing and the text lands in another.
+  const active = await chrome.tabs.query({ active: true, windowId: tab.windowId });
+  if (!active?.length || active[0].id !== tab.id) {
+    throw new Error("you switched to another page before approving; nothing was done — ask again");
+  }
+  return tab;
+}
+
+async function readTab(target) {
+  const tab = await targetTab(target);
   return { title: tab.title || "", url: tab.url || "" };
 }
 
 /**
- * Read clipboard text from the active tab's page context.
+ * Read clipboard text from the page the request was made about.
  * Fallback: execCommand('paste') in the content script.
  */
-async function readClipboard() {
-  const tab = await getActiveTab();
+async function readClipboard(target) {
+  const tab = await targetTab(target);
   try {
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -344,11 +420,11 @@ async function readClipboard() {
 }
 
 /**
- * Write text to the clipboard from the active tab's page context.
+ * Write text to the clipboard from the page the request was made about.
  * Fallback: execCommand('copy') in the content script.
  */
-async function writeClipboard(text) {
-  const tab = await getActiveTab();
+async function writeClipboard(text, target) {
+  const tab = await targetTab(target);
   try {
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
@@ -376,26 +452,68 @@ async function writeClipboard(text) {
 }
 
 /**
- * Type text into the focused element of the active tab.
+ * Type text into the focused field of the page the request was made about.
+ * `execCommand("insertText")` is the closest thing to typing: the page gets the
+ * same input event a keyboard produces, so React and friends update. It inserts
+ * at the caret and keeps the text already in the field, which `el.value =` did
+ * not — that overwrote the field.
  */
-async function injectText(text) {
-  const tab = await getActiveTab();
+async function injectText(text, target) {
+  const tab = await targetTab(target);
+  let results;
   try {
-    await chrome.scripting.executeScript({
+    results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },
       func: (value) => {
         const el = document.activeElement;
-        if (!el || typeof el.value !== "string") return false;
-        el.value = value;
-        el.dispatchEvent(new Event("input", { bubbles: true }));
-        el.dispatchEvent(new Event("change", { bubbles: true }));
-        return true;
+        const hasValue = el && typeof el.value === "string";
+        if (!el || (!hasValue && !el.isContentEditable)) {
+          return { ok: false, reason: "no text field is focused on that page" };
+        }
+        const read = () => (hasValue ? el.value : el.innerText || "");
+        const before = read();
+        el.focus();
+        let inserted = false;
+        try {
+          inserted = document.execCommand("insertText", false, value);
+        } catch {
+          inserted = false;
+        }
+        if (!inserted || read() === before) {
+          // The page refused the command: fall back to writing at the caret with
+          // the native setter, then dispatch the input event the page listens for.
+          const proto = el instanceof HTMLTextAreaElement
+            ? HTMLTextAreaElement.prototype
+            : el instanceof HTMLInputElement
+              ? HTMLInputElement.prototype
+              : null;
+          const setter = proto && Object.getOwnPropertyDescriptor(proto, "value")?.set;
+          if (!setter || !hasValue) {
+            return { ok: false, reason: "that field cannot take text" };
+          }
+          const startPos = el.selectionStart ?? el.value.length;
+          const endPos = el.selectionEnd ?? startPos;
+          setter.call(el, el.value.slice(0, startPos) + value + el.value.slice(endPos));
+          el.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: value }));
+          el.selectionStart = el.selectionEnd = startPos + value.length;
+        }
+        const after = read();
+        const ok = after.includes(value);
+        return {
+          ok,
+          field: el.tagName.toLowerCase(),
+          characters: value.length,
+          reason: ok ? "" : "the field did not keep the text",
+        };
       },
       args: [text],
     });
   } catch (e) {
-    throw new Error(`inject failed: ${e.message}`);
+    throw new Error(`the page refused the text: ${e.message}`);
   }
+  const result = results?.[0]?.result;
+  if (!result?.ok) throw new Error(result?.reason || "the text was not inserted");
+  return result;
 }
 
 /** Increment the approvals counter in chrome.storage.local. */
@@ -426,6 +544,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
                 action: pendingApproval.action,
                 from: pendingApproval.from,
                 detail: describeAction(pendingApproval),
+                // The page it is about, and the whole payload — the popup shows
+                // both, because a person approves what they can read.
+                target: pendingApproval.target
+                  ? { host: pendingApproval.target.host, url: pendingApproval.target.url }
+                  : null,
+                text: typeof pendingApproval.params?.text === "string" ? pendingApproval.params.text : "",
               }
             : null,
           approvals: approvals || 0,

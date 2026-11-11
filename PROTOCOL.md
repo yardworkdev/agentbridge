@@ -73,6 +73,13 @@ Server → Agent (verbatim forward of the result).
 | `writeClipboard` | `{"text": string}` | `{"ok": true}` |
 | `inject` | `{"text": string}` | `{"ok": true}` (type text into focused element) |
 
+**An approval is bound to the page it was asked about.** The request carries the tab and its URL,
+captured when the action arrives, and the prompt names that page. At approval time the extension
+checks that the tab still exists, still shows that URL, and is still the tab in front — a person who
+switched pages gets `{"ok": false, "error": "you switched to another page before approving; nothing
+was done — ask again"}` and no action runs anywhere. `inject` answers `{"ok": true, "characters": n,
+"field": "input"}` only after reading the field back and finding the text in it.
+
 Error responses: `{"ok": false, "error": "denied by user"}` for denials,
 `{"ok": false, "error": "<message>"}` for execution failures,
 `{"ok": false, "error": "no extension connected"}` if no extension is attached.

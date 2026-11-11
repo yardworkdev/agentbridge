@@ -2,7 +2,7 @@
 
 Free local bridge: AI agents attach to your Chrome browser and read the active tab,
 read/write the clipboard, and inject text — with your explicit approval on every action.
-Version 0.3.0. Made by YardWork (https://yardwork.dev).
+Version 0.4.0. Made by YardWork (https://yardwork.dev).
 
 **[Install from the Chrome Web Store](https://chromewebstore.google.com/detail/agentbridge-%E2%80%94-connect-ai/empaehmlgclgkljpjeaemefoeafalfal)** ·
 [MIT licensed](LICENSE) · [Protocol](PROTOCOL.md) · [Privacy](https://yardwork.dev/agentbridge/privacy.html)
@@ -16,7 +16,7 @@ Once attached, an agent can:
 - **readTab** — see the title and URL of the active tab.
 - **readClipboard** — read the current clipboard text.
 - **writeClipboard** — write text into your clipboard.
-- **inject** — type text into the focused field on the active page.
+- **inject** — type text into the focused field of the page you were looking at, at the caret.
 
 Every agent action requires an explicit human approval in the extension.
 **No auto-execution. Ever.** This is the product's core value.
@@ -122,7 +122,7 @@ ws.onmessage = (e) => {
 | `readTab` | `{}` | `{"title": string, "url": string}` — active tab of the current window |
 | `readClipboard` | `{}` | `{"text": string}` |
 | `writeClipboard` | `{"text": string}` | `{"ok": true}` |
-| `inject` | `{"text": string}` | `{"ok": true}` — types text into the focused element |
+| `inject` | `{"text": string}` | `{"ok": true, "characters": n, "field": "input"}` — the text was verified in the field. Nothing focused, a changed page, or a field that keeps nothing answer `{"ok": false, "error": ...}` |
 
 Errors return `{"ok": false, "error": "<message>"}`:
 

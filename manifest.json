@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "AgentBridge — Connect AI Agents to Your Browser",
-  "version": "0.3.0",
-  "description": "Local bridge so AI agents can read the active tab and clipboard and inject text — every action needs your approval.",
+  "name": "AgentBridge \u2014 Connect AI Agents to Your Browser",
+  "version": "0.4.0",
+  "description": "Local bridge so AI agents can read the active tab and clipboard and inject text \u2014 every action needs your approval.",
   "permissions": [
     "activeTab",
     "clipboardRead",
@@ -12,7 +12,9 @@
     "notifications",
     "alarms"
   ],
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "background": {
     "service_worker": "background.js"
   },
@@ -22,8 +24,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_idle"
     }
   ],

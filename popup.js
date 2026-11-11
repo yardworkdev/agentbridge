@@ -25,6 +25,25 @@ function render(state) {
     $("pendingAction").textContent = `Action: ${pending.action}`;
     $("pendingFrom").textContent = `Requested by agent: ${pending.from || "unknown"}`;
     $("pendingDetail").textContent = pending.detail || "";
+
+    // The page the action is about, and the whole payload. An approval is only
+    // meaningful if it says where the text goes and shows all of it.
+    const where = $("pendingWhere");
+    if (pending.target?.host || pending.target?.url) {
+      where.hidden = false;
+      where.textContent = `Page: ${pending.target.url || pending.target.host}`;
+      where.title = pending.target.url || "";
+    } else {
+      where.hidden = true;
+    }
+    const textEl = $("pendingText");
+    if (pending.text) {
+      textEl.hidden = false;
+      textEl.textContent = pending.text;
+    } else {
+      textEl.hidden = true;
+      textEl.textContent = "";
+    }
   } else {
     $("pendingWrap").hidden = true;
     $("noPending").hidden = false;
