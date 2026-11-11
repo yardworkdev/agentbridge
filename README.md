@@ -147,7 +147,7 @@ Errors return `{"ok": false, "error": "<message>"}`:
 ## Approval flow
 
 1. Every action shows an approval UI **first** — a Chrome notification with
-   ✅/🚫 buttons, with the popup as fallback.
+   Approve and Deny buttons, with the popup as fallback.
 2. Execution happens **only after** explicit approval.
 3. **One pending request at a time.** If a new action arrives while one is pending,
    it is auto-denied with `{"ok": false, "error": "busy"}`.

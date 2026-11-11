@@ -291,7 +291,7 @@ function showApprovalNotification(req) {
       iconUrl: "icons/icon128.png",
       title: `AgentBridge: ${actionLabel}?`,
       message: `Agent "${req.from || "unknown"}" requests: ${detail}`,
-      buttons: [{ title: "✅ Approve" }, { title: "🚫 Deny" }],
+      buttons: [{ title: "Approve" }, { title: "Deny" }],
       priority: 2,
       requireInteraction: true,
     },

@@ -89,7 +89,7 @@ Error responses: `{"ok": false, "error": "denied by user"}` for denials,
 
 ## Approval gate rules (extension side — non-negotiable)
 
-1. Every action → show approval UI FIRST (notification with ✅/🚫 buttons + popup fallback).
+1. Every action → show approval UI FIRST (notification with Approve/Deny buttons + popup fallback).
    The prompt must show the requesting agent's name (`from`).
 2. Execute ONLY after explicit approval.
 3. One pending request at a time. If a new action arrives while one is pending → auto-deny it with `{"ok": false, "error": "busy"}`.
