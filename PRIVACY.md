@@ -1,6 +1,6 @@
 # Privacy Policy — AgentBridge
 
-*Effective date: 2026-08-13 · Version 0.1.0*
+*Effective date: 2026-11-11 · Version 0.5.0*
 
 This policy applies to the AgentBridge Chrome extension and its local bridge
 server (`bridge-server.mjs`). It explains what data is collected, where it
@@ -24,7 +24,7 @@ and **you approve it**. The possible data:
 
 | Feature | Data involved | When |
 |---|---|---|
-| Read active tab (`readTab`) | The title and URL of your active tab | Only after your approval |
+| Read the page (`readTab`) | The title and URL of the page you were looking at when the request arrived | Only after your approval |
 | Read clipboard (`readClipboard`) | The text currently on your clipboard | Only after your approval |
 | Write clipboard (`writeClipboard`) | Text written to your clipboard | Only after your approval |
 | Type into a field (`inject`) | The text typed into the focused field | Only after your approval |
@@ -77,3 +77,11 @@ changes will concern the data-processing mechanics described above.
 
 Questions about this policy: **hello@vesivanov.net** (YardWork,
 https://yardwork.dev).
+
+## Where your keys live
+
+`bridge-server.mjs` writes two secrets — an agent token and the extension key — to
+`~/.agentbridge/keys.json` on this machine, readable only by your user account
+(mode `600`). Nothing is uploaded anywhere. The extension stores its key in Chrome's
+local extension storage. Either side can be replaced with `--rotate`, which
+invalidates both.

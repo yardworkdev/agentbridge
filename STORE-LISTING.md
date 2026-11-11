@@ -1,6 +1,6 @@
 # AgentBridge — Chrome Web Store Listing
 
-- **Version:** 0.3.0
+- **Version:** 0.5.0
 - **Price:** Free
 - **Developer:** YardWork — https://yardwork.dev
 
@@ -26,7 +26,7 @@ AgentBridge is a free, local bridge between AI agents and your Chrome browser.
 
 It gives your AI assistant a safe, approved way to see and act in your browser:
 
-• Read the active tab — see the page title and URL
+• Read the page you are on — its title and URL
 • Read the clipboard — grab the text you copied
 • Write the clipboard — put text there ready to paste
 • Inject text — type into the focused field on any page
