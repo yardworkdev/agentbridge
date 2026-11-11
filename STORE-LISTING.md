@@ -77,7 +77,7 @@ AgentBridge exists for one purpose: to let AI agents read your active tab and cl
 | `storage` | Store the approval count and bridge status locally. |
 | `notifications` | Show the approval notification with Approve/Deny buttons. |
 | `alarms` | Keep the service worker alive so the extension stays connected. |
-| `host_permissions: <all_urls>` | Agents act without a user gesture, so the extension must reach any page the user has open. The approval gate is the control that makes this safe. |
+| `host_permissions: <all_urls>` | Agents act without a user gesture, so the extension must reach any page the user has open. The approval gate is the control that makes this safe. No content script is declared on these pages: nothing of the extension runs until an approved action needs it. |
 
 ## Privacy
 

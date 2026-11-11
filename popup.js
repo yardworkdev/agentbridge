@@ -18,6 +18,25 @@ function render(state) {
 
   $("approvals").textContent = `Approvals: ${state.approvals}`;
 
+  const errEl = $("stateError");
+  if (state.error) {
+    errEl.hidden = false;
+    errEl.textContent = state.error;
+  } else {
+    errEl.hidden = true;
+  }
+
+  // A second request is not dropped: it waits its turn, and the person can see
+  // how many are behind this one.
+  const queueEl = $("queueNote");
+  const waiting = (state.queue?.length || 0) - 1;
+  if (waiting > 0) {
+    queueEl.hidden = false;
+    queueEl.textContent = `${waiting} more request${waiting === 1 ? "" : "s"} waiting behind this one`;
+  } else {
+    queueEl.hidden = true;
+  }
+
   const pending = state.pending;
   if (pending) {
     $("pendingWrap").hidden = false;

@@ -9,6 +9,9 @@
  */
 import http from "node:http";
 import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 const PORT = 8788;
 const HOST = "127.0.0.1";
@@ -18,18 +21,70 @@ const PONG_TIMEOUT_MS = 60_000; // 2 missed pongs -> drop
 const MAX_FRAME_BYTES = 1_048_576; // 1 MB per message — frame-size DoS guard
 const MAX_BUFFER_BYTES = 4 * MAX_FRAME_BYTES; // 4 MB in-flight buffer cap
 
-// Shared-secret auth: every client (agent OR extension) must present this
-// token in its hello. Generated fresh each start; override with
-// AGENTBRIDGE_TOKEN for test harnesses / deterministic setups.
-const TOKEN = process.env.AGENTBRIDGE_TOKEN || crypto.randomBytes(32).toString("hex");
+// Two secrets, because one secret meant an agent could claim to be the browser:
+// an agent token that agents present, and an extension key that only the person's
+// extension has. They live in ~/.agentbridge/keys.json (mode 600) so a restart no
+// longer invalidates the carried-over setup. --rotate replaces them, --show-keys
+// prints them again.
+const KEY_DIR = path.join(os.homedir(), ".agentbridge");
+const KEY_FILE = path.join(KEY_DIR, "keys.json");
 
-/** Timing-safe token comparison. */
-function tokenMatches(candidate) {
+function randomKey() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+function loadKeys() {
+  const rotate = process.argv.includes("--rotate");
+  const show = process.argv.includes("--show-keys");
+  let saved = null;
+  try {
+    saved = JSON.parse(fs.readFileSync(KEY_FILE, "utf8"));
+  } catch {
+    saved = null;
+  }
+  const fresh = !saved || !saved.agentToken || !saved.extensionKey;
+  if (rotate || fresh) {
+    saved = { agentToken: randomKey(), extensionKey: randomKey() };
+    try {
+      fs.mkdirSync(KEY_DIR, { recursive: true, mode: 0o700 });
+      fs.writeFileSync(KEY_FILE, JSON.stringify(saved, null, 2), { mode: 0o600 });
+      fs.chmodSync(KEY_FILE, 0o600);
+      fs.chmodSync(KEY_DIR, 0o700);
+      console.log(`${rotate ? "Rotated" : "Created"} ${KEY_FILE}`);
+    } catch (e) {
+      console.log(`Could not save keys (${e.message}); they last only until this process ends`);
+    }
+  }
+  if (rotate || fresh || show) {
+    console.log(`  agent token:   ${saved.agentToken}`);
+    console.log(`  extension key: ${saved.extensionKey}   <- paste this into the extension popup`);
+  } else {
+    console.log(`Using the saved keys in ${KEY_FILE}`);
+  }
+  if (process.env.AGENTBRIDGE_TOKEN) saved.agentToken = process.env.AGENTBRIDGE_TOKEN;
+  if (process.env.AGENTBRIDGE_EXTENSION_KEY) saved.extensionKey = process.env.AGENTBRIDGE_EXTENSION_KEY;
+  return saved;
+}
+
+const KEYS = loadKeys();
+const AGENT_TOKEN = KEYS.agentToken;
+const EXTENSION_KEY = KEYS.extensionKey;
+
+/** Timing-safe comparison against an expected secret. */
+function tokenMatches(candidate, expected) {
   if (typeof candidate !== "string") return false;
   const a = Buffer.from(candidate);
-  const b = Buffer.from(TOKEN);
+  const b = Buffer.from(expected);
   if (a.length !== b.length) return false;
   return crypto.timingSafeEqual(a, b);
+}
+
+/**
+ * The server proves it holds the extension key before the extension sends it.
+ * A process that binds 8788 first cannot answer this, so it cannot harvest the key.
+ */
+function proofFor(nonce) {
+  return crypto.createHmac("sha256", EXTENSION_KEY).update(String(nonce)).digest("hex");
 }
 
 function log(event, detail = {}) {
@@ -184,9 +239,23 @@ function route(msg, conn) {
   if (!msg || typeof msg.type !== "string") return;
 
   switch (msg.type) {
+    case "auth-challenge": {
+      if (typeof msg.nonce !== "string" || msg.nonce.length > 200) break;
+      conn.nonce = msg.nonce;
+      conn.sendText({ type: "server-hello", nonce: msg.nonce, proof: proofFor(msg.nonce) });
+      break;
+    }
+
     case "hello": {
-      if (!tokenMatches(msg.token)) {
-        conn.sendText({ type: "error", error: "invalid token" });
+      // An agent cannot hold the extension key, so it cannot take the browser's
+      // place at the gate — the single shared token allowed exactly that.
+      const wantsExtension = msg.role === "extension";
+      const expected = wantsExtension ? EXTENSION_KEY : AGENT_TOKEN;
+      if (!tokenMatches(msg.token, expected)) {
+        conn.sendText({
+          type: "error",
+          error: wantsExtension ? "invalid extension key" : "invalid token",
+        });
         conn._close();
         return;
       }
@@ -338,5 +407,5 @@ process.on("SIGTERM", shutdown);
 
 server.listen(PORT, HOST, () => {
   log("listening", { url: `ws://${HOST}:${PORT}` });
-  console.log(`AgentBridge token: ${TOKEN}`);
+  console.log(`AgentBridge ready. Agent token and extension key: ${KEY_FILE} (--show-keys to print)`);
 });

@@ -32,6 +32,7 @@ const SERVER = path.join(__dirname, "..", "bridge-server.mjs");
 const PORT = 8788;
 const URL = `ws://127.0.0.1:${PORT}`;
 const TOKEN = "stress-token";
+const EXT_KEY = "stress-ext-key";
 const STRICT = process.env.STRICT === "1";
 
 let passed = 0, failed = 0, findings = [];
@@ -130,7 +131,7 @@ function frame(opcode, payload, { fin = true, forceLen = null } = {}) {
 
 // ---- start server ----
 const server = spawn(process.execPath, [SERVER], {
-  env: { ...process.env, AGENTBRIDGE_TOKEN: TOKEN },
+  env: { ...process.env, AGENTBRIDGE_TOKEN: TOKEN, AGENTBRIDGE_EXTENSION_KEY: EXT_KEY },
   stdio: ["ignore", "pipe", "pipe"],
 });
 let srvOut = "";
@@ -190,7 +191,7 @@ try {
   // ===== C. concurrent routing under load (fake extension echo) =====
   {
     const ext = await wsConnect();
-    ext.send(JSON.stringify({ type: "hello", role: "extension", name: "fake-ext", token: TOKEN }));
+    ext.send(JSON.stringify({ type: "hello", role: "extension", name: "fake-ext", token: EXT_KEY }));
     await sleep(100);
     const NA = 25, PER = 10;
     const agents = [];
@@ -233,7 +234,7 @@ try {
   // ===== D. duplicate request id across two agents (fixed: busy, not orphan) =====
   {
     const ext = await wsConnect();
-    ext.send(JSON.stringify({ type: "hello", role: "extension", name: "ext-d", token: TOKEN }));
+    ext.send(JSON.stringify({ type: "hello", role: "extension", name: "ext-d", token: EXT_KEY }));
     const extCol = collector(ext); // persistent listener — no dropped actions
     const A = await wsConnect(); A.send(JSON.stringify({ type: "hello", role: "agent", name: "dupA", token: TOKEN }));
     const B = await wsConnect(); B.send(JSON.stringify({ type: "hello", role: "agent", name: "dupB", token: TOKEN }));
@@ -256,7 +257,7 @@ try {
   // ===== E. agent name collision (suspected cleanup/status bug) =====
   {
     const ext = await wsConnect();
-    ext.send(JSON.stringify({ type: "hello", role: "extension", name: "ext-e", token: TOKEN }));
+    ext.send(JSON.stringify({ type: "hello", role: "extension", name: "ext-e", token: EXT_KEY }));
     const A = await wsConnect(); A.send(JSON.stringify({ type: "hello", role: "agent", name: "shared", token: TOKEN }));
     await sleep(80);
     const B = await wsConnect(); B.send(JSON.stringify({ type: "hello", role: "agent", name: "shared", token: TOKEN }));
@@ -312,7 +313,7 @@ try {
 
   // ===== H. role abuse =====
   {
-    const ext = await wsConnect(); ext.send(JSON.stringify({ type: "hello", role: "extension", name: "ext-h", token: TOKEN }));
+    const ext = await wsConnect(); ext.send(JSON.stringify({ type: "hello", role: "extension", name: "ext-h", token: EXT_KEY }));
     const ag = await wsConnect(); ag.send(JSON.stringify({ type: "hello", role: "agent", name: "ag-h", token: TOKEN }));
     await sleep(120);
     // extension tries to send an action -> must be ignored (no crash, no forward)
@@ -337,10 +338,10 @@ try {
       w.close();
     }
     // extension replacement: second extension should evict first
-    const e1 = await wsConnect(); e1.send(JSON.stringify({ type: "hello", role: "extension", name: "ext1", token: TOKEN }));
+    const e1 = await wsConnect(); e1.send(JSON.stringify({ type: "hello", role: "extension", name: "ext1", token: EXT_KEY }));
     await sleep(80);
     const e1Closed = waitConn(e1);
-    const e2 = await wsConnect(); e2.send(JSON.stringify({ type: "hello", role: "extension", name: "ext2", token: TOKEN }));
+    const e2 = await wsConnect(); e2.send(JSON.stringify({ type: "hello", role: "extension", name: "ext2", token: EXT_KEY }));
     await Promise.race([e1Closed, sleep(3000)]);
     ok(e1.readyState === WebSocket.CLOSED, "I1 extension replacement evicts old extension");
     // status still reaches a live agent via the NEW extension

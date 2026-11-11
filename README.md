@@ -48,10 +48,15 @@ Two ways in: the **Chrome Web Store** (normal use), or loading this folder unpac
 2. **Start the bridge server**
    - Requires Node.js 20 or newer. No dependencies to install.
    - Run: `node bridge-server.mjs`
-   - It prints `AgentBridge token: <hex>` — **copy this token**.
-3. **Paste the token into the extension popup** (one-time) — open the AgentBridge
-   popup, paste the token, click **Save token**. The extension reconnects and shows
-   the bridge status. Without a token the extension stays disconnected on purpose.
+   - The first run writes two secrets to `~/.agentbridge/keys.json` (mode `600`) and
+     prints them once: the **agent token** and the **extension key**. Later starts
+     reuse them, so the setup survives a restart. `--show-keys` prints them again,
+     `--rotate` replaces them (every client then has to be re-told).
+3. **Paste the extension key into the extension popup** (one-time) — open the
+   AgentBridge popup, paste it, click **Save token**. The extension reconnects and
+   shows the bridge status. Without a key the extension stays disconnected on purpose.
+   An agent holding the agent token cannot take its place: the two secrets are not
+   interchangeable.
 4. **Confirm the connection** — the popup shows the bridge status and any pending
    approval requests.
 
@@ -65,7 +70,7 @@ Minimal agent client (Node 22+, built-in WebSocket):
 
 ```js
 const ws = new WebSocket("ws://127.0.0.1:8788");
-const TOKEN = "paste the token printed by bridge-server.mjs";
+const TOKEN = "the agent token from ~/.agentbridge/keys.json (or --show-keys)";
 
 ws.onopen = () => {
   ws.send(JSON.stringify({ type: "hello", role: "agent", name: "my-agent", token: TOKEN }));
@@ -77,10 +82,11 @@ ws.onmessage = (e) => {
 };
 ```
 
-> **Token required.** Every client (agent AND extension) must present the
-> shared-secret token in its `hello`. Start the server with
-> `AGENTBRIDGE_TOKEN=my-token node bridge-server.mjs` to fix the token for
-> automation; otherwise the server generates a fresh one each start and prints it.
+> **Two secrets, not one.** Agents present the agent token; the extension presents
+> the extension key. A single shared secret meant any agent could claim
+> `role: "extension"` and close the real one. Set them for automation with
+> `AGENTBRIDGE_TOKEN=… AGENTBRIDGE_EXTENSION_KEY=… node bridge-server.mjs`, or let
+> the server keep them in `~/.agentbridge/keys.json`.
 
 ### Message protocol (JSON text frames)
 
@@ -90,10 +96,16 @@ ws.onmessage = (e) => {
    ```json
    {"type": "hello", "role": "agent", "name": "my-agent", "token": "<shared-secret>"}
    ```
-   Extension → Server:
+   Extension → Server (after proving the server holds the key — see below):
    ```json
-   {"type": "hello", "role": "extension", "name": "AgentBridge", "token": "<shared-secret>"}
+   {"type": "hello", "role": "extension", "name": "AgentBridge", "token": "<extension-key>"}
    ```
+
+   **The extension does not send its key to an unproven server.** On open it sends
+   `{"type":"auth-challenge","nonce":"<random>"}`; the server answers
+   `{"type":"server-hello","nonce":…,"proof":"<HMAC-SHA256(extensionKey, nonce)>"}`.
+   The extension verifies the proof and closes the socket, sending nothing, if it
+   does not match — so a local process that binds 8788 first cannot harvest the key.
 
 2. **Action request** (agent → server → extension; server injects `from` = agent name):
    ```json
@@ -147,6 +159,17 @@ Errors return `{"ok": false, "error": "<message>"}`:
 
 - **Loopback only.** The bridge binds to `127.0.0.1:8788`. Nothing is exposed to the
   network or the internet.
+- **Separate secrets per role.** Agents hold the agent token; only the extension
+  holds the extension key, so an agent cannot impersonate the browser at the gate.
+- **The server proves itself first.** The extension verifies an HMAC challenge
+  before sending the key, so a process squatting on port 8788 gets nothing.
+- **Agent names are labels, not identities.** The `from` field is whatever the
+  connection declared; every agent that holds the agent token can call itself
+  anything. Give each agent its own bridge instance if the distinction matters.
+- **Queued, not dropped.** Requests wait their turn (badge shows the count, 60 s
+  each); a second request is no longer answered `busy`.
+- **Nothing runs on every page.** There is no `content_scripts` entry any more; the
+  clipboard fallback is injected into one tab, when an approved action needs it.
 - **Shared-secret token auth.** Every connection must present the token in its
   `hello`; the server rejects and closes otherwise. Web pages (browser Origins)
   cannot even complete the WebSocket handshake — only local processes without an

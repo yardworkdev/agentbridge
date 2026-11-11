@@ -20,7 +20,8 @@ import path from "node:path";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER = path.join(__dirname, "..", "bridge-server.mjs");
 const URL = "ws://127.0.0.1:8788";
-const TOKEN = "self-test-token"; // deterministic for the harness
+const TOKEN = "self-test-token"; // agent token — deterministic for the harness
+const EXT_KEY = "self-test-ext-key"; // extension key; an agent token must not work here
 
 let passed = 0;
 let failed = 0;
@@ -36,7 +37,7 @@ function check(name, cond, extra = "") {
 
 // Start the server with the token, wait for "listening" on stdout.
 const server = spawn(process.execPath, [SERVER], {
-  env: { ...process.env, AGENTBRIDGE_TOKEN: TOKEN },
+  env: { ...process.env, AGENTBRIDGE_TOKEN: TOKEN, AGENTBRIDGE_EXTENSION_KEY: EXT_KEY },
   stdio: ["ignore", "pipe", "pipe"],
 });
 let serverOutput = "";
@@ -114,7 +115,7 @@ try {
   await sleep(100);
 
   const ext = await connect();
-  ext.send(JSON.stringify({ type: "hello", role: "extension", name: "AgentBridge", token: TOKEN }));
+  ext.send(JSON.stringify({ type: "hello", role: "extension", name: "AgentBridge", token: EXT_KEY }));
   await sleep(100);
 
   // 4. Action routed agent -> extension verbatim (with requester identity).

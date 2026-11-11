@@ -80,6 +80,9 @@ switched pages gets `{"ok": false, "error": "you switched to another page before
 was done — ask again"}` and no action runs anywhere. `inject` answers `{"ok": true, "characters": n,
 "field": "input"}` only after reading the field back and finding the text in it.
 
+**Requests queue.** A second action arriving while one is waiting is not denied:
+both wait, in order, each with its own 60 s limit, and the badge shows the count.
+
 Error responses: `{"ok": false, "error": "denied by user"}` for denials,
 `{"ok": false, "error": "<message>"}` for execution failures,
 `{"ok": false, "error": "no extension connected"}` if no extension is attached.

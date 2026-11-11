@@ -33,7 +33,8 @@ const EXT_DIR = path.join(__dirname, "..");
 const SERVER = path.join(__dirname, "..", "bridge-server.mjs");
 const SERVER_PORT = 8788;
 const BRIDGE_URL = `ws://127.0.0.1:${SERVER_PORT}`;
-const BRIDGE_TOKEN = "e2e-token"; // deterministic; set on server + extension
+const BRIDGE_TOKEN = "e2e-token"; // agent token
+const EXT_KEY = "e2e-ext-key"; // extension key, stored in the extension
 const CDP_PORT = 9223;
 const TEST_PAGE_PORT = 8799;
 const TEST_PAGE_URL = `http://127.0.0.1:${TEST_PAGE_PORT}/`;
@@ -323,7 +324,7 @@ async function main() {
 
   // ---- 1. Start the bridge server (with shared-secret token) ----
   const server = spawn(process.execPath, [SERVER], {
-    env: { ...process.env, AGENTBRIDGE_TOKEN: BRIDGE_TOKEN },
+    env: { ...process.env, AGENTBRIDGE_TOKEN: BRIDGE_TOKEN, AGENTBRIDGE_EXTENSION_KEY: EXT_KEY },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let serverOut = "";
@@ -391,7 +392,7 @@ async function main() {
     // (tells the SW not to open its action popup — it steals focus). The SW's
     // storage.onChanged listener triggers connect() on the token write.
     await withTimeout(
-      swCdp.evaluate(`chrome.storage.local.set({e2eMode: true, bridgeToken: ${JSON.stringify(BRIDGE_TOKEN)}})`),
+      swCdp.evaluate(`chrome.storage.local.set({e2eMode: true, bridgeToken: ${JSON.stringify(EXT_KEY)}})`),
       3000,
       "set e2eMode+token"
     ).catch((e) => {

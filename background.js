@@ -21,8 +21,13 @@ let reconnectAttempt = 0;
 let reconnectTimer = null;
 
 /** @type {{id: string, action: string, params: object, from: string}|null} */
-let pendingApproval = null;
-let approvalTimeoutTimer = null;
+/** @type {Array<{id:string,action:string,params:object,from:string,target:object|null,timer:any}>} */
+let pending = [];
+let pendingNonce = null;
+let authTimer = null;
+let connectionError = "";
+const AUTH_TIMEOUT_MS = 3000;
+const MAX_PENDING = 20;
 
 /**
  * Send a message to the bridge server.
@@ -63,9 +68,14 @@ async function connect() {
 
   ws.addEventListener("open", () => {
     reconnectAttempt = 0;
-    sendToBridge({ type: "hello", role: "extension", name: "AgentBridge", token });
-    broadcastStatus("connected");
-    updatePopup();
+    // The key is not sent until the server proves it already knows it: a local
+    // process that binds 8788 first used to receive the token in the first frame.
+    pendingNonce = crypto.randomUUID();
+    sendToBridge({ type: "auth-challenge", nonce: pendingNonce });
+    authTimer = setTimeout(() => {
+      failConnection("the bridge on 8788 did not prove it is AgentBridge — nothing was sent");
+      try { ws?.close(); } catch {}
+    }, AUTH_TIMEOUT_MS);
   });
 
   ws.addEventListener("message", (ev) => {
@@ -100,6 +110,51 @@ function scheduleReconnect() {
   }, delay);
 }
 
+/** Hex HMAC-SHA256, the same construction the bridge server uses. */
+async function hmacHex(key, message) {
+  const enc = new TextEncoder();
+  const imported = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(key),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign("HMAC", imported, enc.encode(String(message)));
+  return [...new Uint8Array(signature)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * The other side of the gate, checked before the key leaves this process.
+ */
+async function verifyServerHello(msg) {
+  clearTimeout(authTimer);
+  authTimer = null;
+  if (!pendingNonce || msg.nonce !== pendingNonce) {
+    failConnection("the bridge answered a challenge this extension did not send");
+    try { ws?.close(); } catch {}
+    return;
+  }
+  const { [TOKEN_KEY]: token } = await chrome.storage.local.get(TOKEN_KEY);
+  const expected = await hmacHex(token, msg.nonce);
+  if (msg.proof !== expected) {
+    failConnection("the bridge on 8788 is not AgentBridge — the key was not sent");
+    try { ws?.close(); } catch {}
+    return;
+  }
+  pendingNonce = null;
+  connectionError = "";
+  sendToBridge({ type: "hello", role: "extension", name: "AgentBridge", token });
+  broadcastStatus("connected");
+  updatePopup();
+}
+
+function failConnection(message) {
+  connectionError = message;
+  console.error("[trace] " + message);
+  updatePopup();
+}
+
 /**
  * Handle a message from the bridge.
  * @param {object} msg
@@ -107,6 +162,10 @@ function scheduleReconnect() {
 async function handleBridgeMessage(msg) {
   // Log metadata only — NEVER message bodies (clipboard/inject text).
   console.log("[trace] bridge msg:", msg?.type || "?", msg?.id || "", msg?.action || "", msg?.from || "");
+  if (msg.type === "server-hello") {
+    await verifyServerHello(msg);
+    return;
+  }
   if (msg.type === "action") {
     await handleActionRequest(msg);
   }
@@ -118,9 +177,10 @@ async function handleBridgeMessage(msg) {
  * @param {{id: string, action: string, params: object}} req
  */
 async function handleActionRequest(req) {
-  if (pendingApproval) {
-    // Busy: a request is already awaiting approval.
-    sendResult(req.id, false, "busy");
+  // Queue, do not deny. A three-step task used to die at step two because the
+  // second request arrived while the first was still waiting for a human.
+  if (pending.length >= MAX_PENDING) {
+    sendResult(req.id, false, "too many requests are waiting for approval; try again");
     return;
   }
 
@@ -133,16 +193,19 @@ async function handleActionRequest(req) {
   // against whatever tab was in front when they clicked Approve, so approving
   // while looking at page A could type into page B.
   const target = await captureTarget();
-  pendingApproval = {
+  const item = {
     id: req.id,
     action: req.action,
     params,
     from: req.from || "unknown",
     target,
+    timer: null,
   };
-  console.log("[trace] pending set:", req.id, req.action, "from", pendingApproval.from);
-  startApprovalTimeout(req.id);
-  showApprovalNotification(req);
+  item.timer = setTimeout(() => expireRequest(item.id), APPROVAL_TIMEOUT_MS);
+  pending.push(item);
+  console.log("[trace] queued:", req.id, req.action, "from", item.from, "waiting", pending.length);
+
+  showApprovalNotification(headRequest());
   updatePopup();
 
   // Fallback: also open the popup so the user sees the request.
@@ -156,6 +219,42 @@ async function handleActionRequest(req) {
       // openPopup may fail if a popup is already open or in some contexts.
     }
   });
+}
+
+/** The request the person is currently being asked about. */
+function headRequest() {
+  return pending[0] || null;
+}
+
+function removeRequest(id) {
+  const index = pending.findIndex((item) => item.id === id);
+  if (index === -1) return null;
+  const [item] = pending.splice(index, 1);
+  clearTimeout(item.timer);
+  return item;
+}
+
+/** Sixty seconds per request; a queued one is denied when its own turn times out. */
+function expireRequest(id) {
+  const item = removeRequest(id);
+  if (!item) return;
+  sendResult(id, false, "timeout");
+  hideNotification();
+  if (headRequest()) showApprovalNotification(headRequest());
+  updatePopup();
+}
+
+/** Badge shows how many are waiting, so a hidden request is never invisible. */
+async function updateBadge() {
+  const count = pending.length;
+  try {
+    await chrome.action.setBadgeText({ text: count ? String(count) : "" });
+    if (count) await chrome.action.setBadgeBackgroundColor({ color: "#374151" });
+    if (count > 1) await chrome.action.setTitle({ title: `AgentBridge — ${count} requests waiting` });
+    else await chrome.action.setTitle({ title: "AgentBridge" });
+  } catch {
+    // badge is cosmetic; never let it break the gate
+  }
 }
 
 /**
@@ -177,22 +276,12 @@ async function captureTarget() {
   }
 }
 
-function startApprovalTimeout(id) {
-  clearTimeout(approvalTimeoutTimer);
-  approvalTimeoutTimer = setTimeout(() => {
-    if (pendingApproval && pendingApproval.id === id) {
-      const req = pendingApproval;
-      pendingApproval = null;
-      clearTimeout(approvalTimeoutTimer);
-      sendResult(req.id, false, "timeout");
-      hideNotification();
-      updatePopup();
-    }
-  }, APPROVAL_TIMEOUT_MS);
-}
-
 /** Show the approval notification with Approve/Deny buttons. */
 function showApprovalNotification(req) {
+  if (!req) {
+    hideNotification();
+    return;
+  }
   const actionLabel = req.action || "unknown action";
   const detail = describeAction(req);
   chrome.notifications.create(
@@ -276,14 +365,14 @@ chrome.notifications.onClicked.addListener((notificationId) => {
   }
 });
 
-/** Approve the pending request (from notification button or popup). */
+/** Approve the request the person is being asked about; the next one surfaces. */
 function approvePending() {
-  console.log("[trace] approvePending called, pending =", pendingApproval ? pendingApproval.id : null);
-  if (!pendingApproval) return;
-  const req = pendingApproval;
-  pendingApproval = null;
-  clearTimeout(approvalTimeoutTimer);
-  hideNotification();
+  const req = removeRequest(headRequest()?.id);
+  console.log("[trace] approvePending called, pending =", req ? req.id : null);
+  if (!req) return;
+  const next = headRequest();
+  if (next) showApprovalNotification(next);
+  else hideNotification();
   updatePopup();
 
   executeAction(req)
@@ -296,14 +385,14 @@ function approvePending() {
     });
 }
 
-/** Deny the pending request. */
+/** Deny the request the person is being asked about; the next one surfaces. */
 function denyPending() {
-  console.log("[trace] denyPending called, pending =", pendingApproval ? pendingApproval.id : null);
-  if (!pendingApproval) return;
-  const req = pendingApproval;
-  pendingApproval = null;
-  clearTimeout(approvalTimeoutTimer);
-  hideNotification();
+  const req = removeRequest(headRequest()?.id);
+  console.log("[trace] denyPending called, pending =", req ? req.id : null);
+  if (!req) return;
+  const nextDenied = headRequest();
+  if (nextDenied) showApprovalNotification(nextDenied);
+  else hideNotification();
   updatePopup();
   sendResult(req.id, false, "denied by user");
 }
@@ -413,7 +502,8 @@ async function readClipboard(target) {
   } catch {
     // fall through to content script path
   }
-  // Fallback via content script (execCommand paste).
+  // Fallback via the content script, injected into this tab only (execCommand paste).
+  await ensureContentScript(tab.id);
   const res = await chrome.tabs.sendMessage(tab.id, { type: "agentbridge:readClipboard" });
   if (res?.ok) return { text: res.text };
   throw new Error("clipboard read failed");
@@ -446,9 +536,28 @@ async function writeClipboard(text, target) {
   } catch {
     // fall through
   }
+  await ensureContentScript(tab.id);
   const res = await chrome.tabs.sendMessage(tab.id, { type: "agentbridge:writeClipboard", text });
   if (res?.ok) return;
   throw new Error("clipboard write failed");
+}
+
+/** Tabs the clipboard fallback has been loaded into, for the popup and for tests. */
+const fallbackTabs = new Set();
+
+/** Inject the clipboard fallback into one tab, the first time it is needed. */
+async function ensureContentScript(tabId) {
+  try {
+    const pong = await chrome.tabs.sendMessage(tabId, { type: "agentbridge:ping" });
+    if (pong?.ok) {
+      fallbackTabs.add(tabId);
+      return;
+    }
+  } catch {
+    // not injected in this tab yet
+  }
+  await chrome.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
+  fallbackTabs.add(tabId);
 }
 
 /**
@@ -536,22 +645,31 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     case "agentbridge:getState":
       chrome.storage.local.get([APPROVALS_KEY, TOKEN_KEY]).then(({ [APPROVALS_KEY]: approvals = 0, [TOKEN_KEY]: token = "" }) => {
         sendResponse({
-          connected: !!(ws && ws.readyState === WebSocket.OPEN),
+          connected: !!(ws && ws.readyState === WebSocket.OPEN && !connectionError),
+          error: connectionError,
           tokenSet: !!token,
-          pending: pendingApproval
+          pending: headRequest()
             ? {
-                id: pendingApproval.id,
-                action: pendingApproval.action,
-                from: pendingApproval.from,
-                detail: describeAction(pendingApproval),
+                id: headRequest().id,
+                action: headRequest().action,
+                from: headRequest().from,
+                detail: describeAction(headRequest()),
                 // The page it is about, and the whole payload — the popup shows
                 // both, because a person approves what they can read.
-                target: pendingApproval.target
-                  ? { host: pendingApproval.target.host, url: pendingApproval.target.url }
+                target: headRequest().target
+                  ? { host: headRequest().target.host, url: headRequest().target.url }
                   : null,
-                text: typeof pendingApproval.params?.text === "string" ? pendingApproval.params.text : "",
+                text: typeof headRequest().params?.text === "string" ? headRequest().params.text : "",
               }
             : null,
+          fallbackTabs: [...fallbackTabs],
+          queue: pending.map((item) => ({
+            id: item.id,
+            action: item.action,
+            from: item.from,
+            detail: describeAction(item),
+            target: item.target ? { host: item.target.host, url: item.target.url } : null,
+          })),
           approvals: approvals || 0,
         });
       });
@@ -609,6 +727,7 @@ function updatePopup() {
   } catch {
     // popup may not be open
   }
+  updateBadge();
 }
 
 // Startup: connect + keepalive alarm.

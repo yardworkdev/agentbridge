@@ -21,7 +21,8 @@ import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 
 const EXT = dirname(dirname(fileURLToPath(import.meta.url)));
-const TOKEN = "binding-test-token";
+const TOKEN = "binding-test-token"; // agent token
+const EXT_KEY = "binding-ext-key"; // extension key, stored in the extension
 
 function loadPlaywright() {
   const require = createRequire(import.meta.url);
@@ -45,7 +46,7 @@ function check(ok, label, detail = "") {
 
 const server = spawn(process.execPath, ["bridge-server.mjs"], {
   cwd: EXT,
-  env: { ...process.env, AGENTBRIDGE_TOKEN: TOKEN },
+  env: { ...process.env, AGENTBRIDGE_TOKEN: TOKEN, AGENTBRIDGE_EXTENSION_KEY: EXT_KEY },
 });
 server.stdout.resume();
 
@@ -70,7 +71,7 @@ const extId = worker.url().split("/")[2];
 
 const popup = await context.newPage();
 await popup.goto(`chrome-extension://${extId}/popup.html`);
-await popup.evaluate((t) => chrome.storage.local.set({ bridgeToken: t }), TOKEN);
+await popup.evaluate((t) => chrome.storage.local.set({ bridgeToken: t }), EXT_KEY);
 const state = () => popup.evaluate(() => chrome.runtime.sendMessage({ type: "agentbridge:getState" }));
 for (let i = 0; i < 40; i += 1) {
   if ((await state()).connected) break;

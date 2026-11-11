@@ -18,3 +18,15 @@ Please do **not** open a public issue. Report privately to: **ivanov@getyardwork
 ## Scope
 
 The `host_permissions: <all_urls>` permission exists because agents act without a user gesture. The approval gate is the control that makes this safe. If you find a path that executes without approval, that is the highest-severity finding.
+
+## Threat notes
+
+- **Port squatting.** A local process that binds 8788 before the bridge used to receive
+  the extension's key in the first frame. The extension now sends a nonce and verifies
+  an HMAC proof of the key before sending anything; a squatter cannot produce it.
+- **Role confusion.** With one shared secret, an agent could claim `role:"extension"`
+  and displace the real extension. The roles now use separate secrets, so it cannot.
+- **Agent names** are self-declared labels; the token is the identity. Run one bridge
+  per agent if you need a real distinction.
+- **Keys at rest** live in `~/.agentbridge/keys.json`, mode `600`, written by the server
+  on first run. `--rotate` replaces them.

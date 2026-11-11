@@ -1,10 +1,16 @@
 /**
- * AgentBridge — content script (runs on <all_urls> at document_idle).
+ * AgentBridge — content script.
  * Helper ONLY: clipboard read/write fallbacks for the service worker.
  * This script NEVER opens WebSocket connections — the SW owns the bridge.
+ *
+ * Injected on demand by the service worker, only into the tab an approved action
+ * is about — it no longer runs on every page a person visits.
  */
 
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+if (!globalThis.__agentbridgeContentLoaded) {
+  globalThis.__agentbridgeContentLoaded = true;
+
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || typeof msg.type !== "string") return;
   // Only respond to messages from OUR OWN extension (SW/popup).
   if (!sender || sender.id !== chrome.runtime.id) return;
@@ -22,10 +28,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         .catch(() => sendResponse({ ok: false }));
       return true; // async
     }
+    case "agentbridge:ping": {
+      sendResponse({ ok: true });
+      return false;
+    }
     default:
       return false;
   }
-});
+  });
+}
 
 /**
  * Fallback clipboard read: try navigator.clipboard first (may fail without
