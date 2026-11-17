@@ -1,6 +1,6 @@
 # AgentBridge — Chrome Web Store Listing
 
-- **Version:** 0.5.0
+- **Version:** 0.5.1
 - **Price:** Free
 - **Developer:** YardWork — https://yardwork.dev
 
