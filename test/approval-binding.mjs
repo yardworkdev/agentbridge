@@ -64,6 +64,8 @@ await new Promise((r) => setTimeout(r, 400));
 
 const context = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), "ab-binding-")), {
   headless: false,
+  // Root in a container has no usable sandbox; the suites run there too.
+  chromiumSandbox: process.env.AGENTBRIDGE_NO_SANDBOX !== "1",
   args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`],
 });
 const worker = context.serviceWorkers()[0] || (await context.waitForEvent("serviceworker", { timeout: 20000 }));

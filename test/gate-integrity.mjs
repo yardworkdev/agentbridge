@@ -104,6 +104,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   await wait(900);
   const context = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), "ab-gate-")), {
     headless: false,
+    // Root in a container has no usable sandbox; the suites run there too.
+    chromiumSandbox: process.env.AGENTBRIDGE_NO_SANDBOX !== "1",
     args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`],
   });
   const worker = context.serviceWorkers()[0] || (await context.waitForEvent("serviceworker", { timeout: 20000 }));
@@ -132,6 +134,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   await wait(900);
   const context2 = await chromium.launchPersistentContext(mkdtempSync(join(tmpdir(), "ab-gate2-")), {
     headless: false,
+    // Root in a container has no usable sandbox; the suites run there too.
+    chromiumSandbox: process.env.AGENTBRIDGE_NO_SANDBOX !== "1",
     args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`],
   });
   const worker2 = context2.serviceWorkers()[0] || (await context2.waitForEvent("serviceworker", { timeout: 20000 }));

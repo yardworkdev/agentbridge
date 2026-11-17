@@ -19,4 +19,13 @@ Thanks for helping with AgentBridge. Please read the **"For AI agents working on
 
 ## Definition of done
 
+Suites that drive a real browser need a display and, in a container running as
+root, the Chromium sandbox turned off:
+
+```bash
+export PLAYWRIGHT_BROWSERS_PATH=/root/.cache/ms-playwright   # wherever the browser is
+export CHROME_BIN=/root/.cache/ms-playwright/chromium-1248/chrome-linux64/chrome
+AGENTBRIDGE_NO_SANDBOX=1 xvfb-run -a node test/gate-integrity.mjs
+```
+
 Server self-test 8/8 **and** stress 18/18 **and** E2E green — never claim green without running the suite.
