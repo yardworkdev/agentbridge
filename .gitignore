@@ -2,4 +2,7 @@ node_modules/
 *.log
 .DS_Store
 dist/*.zip
-shots/
+# Scratch captures stay out of the repo; the store screenshots that ship with the
+# listing are part of the listing, so they are kept.
+shots/*
+!shots/store/
