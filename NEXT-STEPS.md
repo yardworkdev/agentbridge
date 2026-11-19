@@ -28,6 +28,20 @@ Build the store package:
 python3 -m zipfile -c dist/agentbridge.zip manifest.json background.js content.js popup.html popup.js icons/icon16.png icons/icon48.png icons/icon128.png README.md STORE-LISTING.md
 ```
 
+## Pending — the store upload (owner's step)
+
+The published listing is **0.3.0 (updated 21 August 2026)**; the repo is 0.5.1. Everything
+needed for the update is in this repo, so this is one sitting in the developer dashboard:
+
+1. Download the release asset `agentbridge-0.5.1.zip` from the v0.5.1 release — verified:
+   its `manifest.json` declares `0.5.1` and every file matches this tree byte for byte
+   (sha256 `2a0ad571425fecc19e394dca82e5a2650e787d47fa8efa80361e5a96d56d7839`).
+2. Upload it as the new package.
+3. Paste the **What's new** block from `STORE-LISTING.md`.
+4. Upload `shots/store/01-connected.png`, `02-approval.png`, `03-executed.png` (1280×800).
+5. Submit for review. No new permissions are requested; the always-on content script that
+   shipped in 0.3.0 is gone, so the review surface is smaller than the published version.
+
 ## Roadmap ideas
 
 - **More actions** — mouse clicks, navigation, scrolling (easy, additive to the protocol; see PROTOCOL.md).

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>AgentBridge</title>
+  <style>
+    body {
+      width: 300px;
+      margin: 0;
+      padding: 16px;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+      color: #111827;
+      background: #ffffff;
+    }
+    h1 {
+      font-size: 15px;
+      margin: 0 0 12px 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    h1 img {
+      width: 20px;
+      height: 20px;
+    }
+    .status {
+      padding: 8px 10px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+      font-weight: 600;
+    }
+    .status.connected {
+      background: #dcfce7;
+      color: #166534;
+    }
+    .status.disconnected {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    .pending {
+      background: #fef3c7;
+      border: 1px solid #fde68a;
+      border-radius: 6px;
+      padding: 10px;
+      margin-bottom: 12px;
+    }
+    .pending .action {
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .pending .detail {
+      color: #4b5563;
+      word-break: break-word;
+    }
+    .pending .where {
+      font-weight: 600;
+      color: #111827;
+      margin-bottom: 4px;
+      word-break: break-all;
+    }
+    .pending .payload {
+      margin-top: 6px;
+      max-height: 120px;
+      overflow: auto;
+      background: #fffdf5;
+      border: 1px solid #fde68a;
+      border-radius: 4px;
+      padding: 6px;
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    button {
+      flex: 1;
+      padding: 8px 0;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #approveBtn {
+      background: #16a34a;
+      color: #fff;
+    }
+    #denyBtn {
+      background: #dc2626;
+      color: #fff;
+    }
+    .meta {
+      margin-top: 12px;
+      color: #6b7280;
+      font-size: 12px;
+    }
+    .token {
+      margin-top: 12px;
+      border-top: 1px solid #e5e7eb;
+      padding-top: 10px;
+    }
+    .token label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      color: #374151;
+      margin-bottom: 4px;
+    }
+    .token input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 6px 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 12px;
+      font-family: monospace;
+      margin-bottom: 6px;
+    }
+    .token button {
+      padding: 6px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1><img src="icons/icon48.png" alt="" /> AgentBridge</h1>
+
+  <div id="status" class="status disconnected">Bridge: disconnected</div>
+
+  <div id="pendingWrap" class="pending" hidden>
+    <div class="action" id="pendingAction">—</div>
+    <div class="detail" id="pendingFrom">—</div>
+    <div class="where" id="pendingWhere" hidden>—</div>
+    <div class="detail" id="pendingDetail">—</div>
+    <div class="payload" id="pendingText" hidden></div>
+    <div class="row">
+      <button id="approveBtn">Approve</button>
+      <button id="denyBtn">Deny</button>
+    </div>
+  </div>
+
+  <div id="noPending" class="meta">No pending requests.</div>
+
+  <div id="stateError" class="meta" hidden style="color:#b91c1c"></div>
+  <div id="queueNote" class="meta" hidden></div>
+  <div class="meta" id="approvals">Approvals: 0</div>
+
+  <div class="token">
+    <label for="tokenInput">Bridge token</label>
+    <input id="tokenInput" type="password" placeholder="paste token from bridge server" autocomplete="off" />
+    <button id="tokenSaveBtn">Save token</button>
+    <div class="meta">Start the bridge server — it prints a token. Paste it here so only your agents can connect.</div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

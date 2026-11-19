@@ -54,13 +54,44 @@ Free, and compatible with any agent that speaks WebSocket — the message protoc
 4. productivity
 5. agents
 
-## Screenshot plan (3–5 shots)
+## Screenshots (upload these)
 
-1. **Extension popup — connected state:** bridge status (connected) + approval count.
-2. **Approval notification:** Chrome notification with Approve / Deny buttons for an incoming request — the human gate.
-3. **Agent client terminal:** a small WebSocket client sending a `readTab` request and printing the approved result.
-4. *(optional)* **Clipboard roundtrip:** agent writes text, reads it back.
-5. *(optional)* **Inject demo:** agent text typed into a focused form field after approval.
+Upload these three, in this order. They are real captures of version 0.5.1 — the popup
+drove a real bridge and a real WebSocket agent — composed at 1280×800.
+
+| File | What it shows |
+|---|---|
+| `shots/store/01-connected.png` | The popup connected to the local bridge, nothing pending. |
+| `shots/store/02-approval.png` | The gate: an agent named Claude asks to read a page; who asked, which page, what it does, Approve/Deny. |
+| `shots/store/03-executed.png` | After approval: the agent's words in the field, at the caret. |
+
+## What's new (paste into the store's "What's new" field)
+
+```
+Version 0.5.1 — every approval now means exactly what it says.
+
+• The prompt names the page and the tab it was asked for. If you switch tabs before
+answering, nothing runs — you are told, instead of the action landing somewhere else.
+• You see the whole text before you approve it, with a character count; it used to
+show the first eighty characters and run the rest.
+• Typing inserts at your cursor in the field you were in. It no longer replaces what
+the field held, and a field that kept nothing is reported as a failure, not a success.
+• Your agent and your extension now hold separate secrets, so an agent cannot pose as
+the browser. A bridge that cannot prove itself is refused before any key is sent.
+• A second request waits in a queue instead of being denied as "busy".
+• The always-on content script is gone: nothing of the extension runs on a page until
+an approved action needs it. No new permissions were requested.
+```
+
+## Review notes
+
+- **No new permissions since 0.3.0.** The permission list and host permissions are
+  unchanged; the `<all_urls>` content script that shipped in 0.3.0 is **removed** in
+  0.5.1, so the extension's footprint on pages is smaller than in the version already
+  published.
+- The bridge is a local Node process on `127.0.0.1:8788` that the user starts
+  themselves; the extension never opens a listening socket and never contacts a remote
+  host.
 
 ## Single-purpose statement
 
