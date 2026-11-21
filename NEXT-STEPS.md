@@ -33,8 +33,9 @@ python3 -m zipfile -c dist/agentbridge.zip manifest.json background.js content.j
 The published listing is **0.3.0 (updated 21 August 2026)**; the repo is 0.5.1. Everything
 needed for the update is in this repo, so this is one sitting in the developer dashboard:
 
-1. Download the release asset `agentbridge-0.5.1.zip` from the v0.5.1 release — verified:
-   its `manifest.json` declares `0.5.1` and every file matches this tree byte for byte
+1. Download the release asset `agentbridge-0.5.2.zip` from the v0.5.2 release — built by
+   `node pack.mjs` and checked by `node test/package.mjs`, which reads the archive the way
+   Chrome does (the 0.5.1 zip put the icons in the wrong folder and Chrome refused to load it)
    (sha256 `2a0ad571425fecc19e394dca82e5a2650e787d47fa8efa80361e5a96d56d7839`).
 2. Upload it as the new package.
 3. Paste the **What's new** block from `STORE-LISTING.md`.

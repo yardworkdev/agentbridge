@@ -1,6 +1,6 @@
 # AgentBridge — Chrome Web Store Listing
 
-- **Version:** 0.5.1
+- **Version:** 0.5.2
 - **Price:** Free
 - **Developer:** YardWork — https://yardwork.dev
 
@@ -56,7 +56,7 @@ Free, and compatible with any agent that speaks WebSocket — the message protoc
 
 ## Screenshots (upload these)
 
-Upload these three, in this order. They are real captures of version 0.5.1 — the popup
+Upload these three, in this order. They are real captures of version 0.5.1 (the UI is unchanged in 0.5.2) — the popup
 drove a real bridge and a real WebSocket agent — composed at 1280×800.
 
 | File | What it shows |
@@ -68,7 +68,7 @@ drove a real bridge and a real WebSocket agent — composed at 1280×800.
 ## What's new (paste into the store's "What's new" field)
 
 ```
-Version 0.5.1 — every approval now means exactly what it says.
+Version 0.5.2 — every approval now means exactly what it says.
 
 • The prompt names the page and the tab it was asked for. If you switch tabs before
 answering, nothing runs — you are told, instead of the action landing somewhere else.

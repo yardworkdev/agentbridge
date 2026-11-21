@@ -2,7 +2,7 @@
 
 Free local bridge: AI agents attach to your Chrome browser and read the active tab,
 read/write the clipboard, and inject text — with your explicit approval on every action.
-Version 0.4.0. Made by YardWork (https://yardwork.dev).
+Version 0.5.2. Made by YardWork (https://yardwork.dev).
 
 **[Install from the Chrome Web Store](https://chromewebstore.google.com/detail/agentbridge-%E2%80%94-connect-ai/empaehmlgclgkljpjeaemefoeafalfal)** ·
 [MIT licensed](LICENSE) · [Protocol](PROTOCOL.md) · [Privacy](https://yardwork.dev/agentbridge/privacy.html)
@@ -41,7 +41,16 @@ Every agent action requires an explicit human approval in the extension.
 
 Two ways in: the **Chrome Web Store** (normal use), or loading this folder unpacked (development).
 
-1. **Load the unpacked extension**
+**The extension is half the product.** It talks to a small Node server on your own machine;
+without that server the popup says *disconnected* and nothing else works. You need Node.js 20+
+and one file — the repo is not required:
+
+```sh
+curl -O https://raw.githubusercontent.com/yardworkdev/agentbridge/v0.5.2/bridge-server.mjs
+node bridge-server.mjs
+```
+
+1. **Install the extension** (store, or load the unpacked folder)
    - Open `chrome://extensions`.
    - Enable **Developer mode** (top right).
    - Click **Load unpacked** and select the `agentbridge` folder.

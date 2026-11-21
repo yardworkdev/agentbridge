@@ -38,6 +38,12 @@
       background: #fee2e2;
       color: #991b1b;
     }
+    /* Until the service worker answers, the truth is unknown — saying
+       "disconnected" for that first second is a lie the person acts on. */
+    .status.checking {
+      background: #f3f4f6;
+      color: #4b5563;
+    }
     .pending {
       background: #fef3c7;
       border: 1px solid #fde68a;
@@ -98,6 +104,17 @@
       margin-top: 12px;
       color: #6b7280;
       font-size: 12px;
+      line-height: 1.5;
+    }
+    .meta code {
+      display: block;
+      margin: 6px 0;
+      padding: 6px 8px;
+      background: #f3f4f6;
+      border-radius: 4px;
+      font-size: 11px;
+      word-break: break-all;
+      color: #111827;
     }
     .token {
       margin-top: 12px;
@@ -129,7 +146,7 @@
 <body>
   <h1><img src="icons/icon48.png" alt="" /> AgentBridge</h1>
 
-  <div id="status" class="status disconnected">Bridge: disconnected</div>
+  <div id="status" class="status checking">Bridge: checking…</div>
 
   <div id="pendingWrap" class="pending" hidden>
     <div class="action" id="pendingAction">—</div>
@@ -153,7 +170,9 @@
     <label for="tokenInput">Bridge token</label>
     <input id="tokenInput" type="password" placeholder="paste token from bridge server" autocomplete="off" />
     <button id="tokenSaveBtn">Save token</button>
-    <div class="meta">Start the bridge server — it prints a token. Paste it here so only your agents can connect.</div>
+    <div class="meta">The bridge is one file on your machine:
+      <code>curl -O https://raw.githubusercontent.com/yardworkdev/agentbridge/v0.5.2/bridge-server.mjs</code>
+      then <code>node bridge-server.mjs</code>. It prints the token — paste it here.</div>
   </div>
 
   <script src="popup.js"></script>

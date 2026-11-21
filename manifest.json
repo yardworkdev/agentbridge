@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AgentBridge \u2014 Connect AI Agents to Your Browser",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Local bridge so AI agents can read the active tab and clipboard and inject text \u2014 every action needs your approval.",
   "permissions": [
     "activeTab",
