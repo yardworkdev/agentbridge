@@ -2,7 +2,7 @@
 
 Free local bridge: AI agents attach to your Chrome browser and read the active tab,
 read/write the clipboard, and inject text — with your explicit approval on every action.
-Version 0.5.2. Made by YardWork (https://yardwork.dev).
+Version 0.6.0. Made by YardWork (https://yardwork.dev).
 
 **[Install from the Chrome Web Store](https://chromewebstore.google.com/detail/agentbridge-%E2%80%94-connect-ai/empaehmlgclgkljpjeaemefoeafalfal)** ·
 [MIT licensed](LICENSE) · [Protocol](PROTOCOL.md) · [Privacy](https://yardwork.dev/agentbridge/privacy.html)
@@ -46,7 +46,7 @@ without that server the popup says *disconnected* and nothing else works. You ne
 and one file — the repo is not required:
 
 ```sh
-curl -O https://raw.githubusercontent.com/yardworkdev/agentbridge/v0.5.2/bridge-server.mjs
+curl -LO https://github.com/yardworkdev/agentbridge/releases/latest/download/bridge-server.mjs
 node bridge-server.mjs
 ```
 

@@ -1,6 +1,6 @@
 # AgentBridge — Chrome Web Store Listing
 
-- **Version:** 0.5.2
+- **Version:** 0.6.0
 - **Price:** Free
 - **Developer:** YardWork — https://yardwork.dev
 
@@ -56,19 +56,19 @@ Free, and compatible with any agent that speaks WebSocket — the message protoc
 
 ## Screenshots (upload these)
 
-Upload these three, in this order. They are real captures of version 0.5.1 (the UI is unchanged in 0.5.2) — the popup
+Upload these three, in this order. They are real captures of version 0.6.0 — the popup
 drove a real bridge and a real WebSocket agent — composed at 1280×800.
 
 | File | What it shows |
 |---|---|
-| `shots/store/01-connected.png` | The popup connected to the local bridge, nothing pending. |
-| `shots/store/02-approval.png` | The gate: an agent named Claude asks to read a page; who asked, which page, what it does, Approve/Deny. |
-| `shots/store/03-executed.png` | After approval: the agent's words in the field, at the caret. |
+| `shots/store/01-approval.png` | The gate: an agent asks to type into a page, with the page, the full payload and its character count, and only then Approve/Deny. |
+| `shots/store/02-setup.png` | The honest state: no bridge running — the popup says offline and puts the one command that fixes it in front of you. |
+| `shots/store/03-done.png` | Local only: the bridge listens on 127.0.0.1, the extension makes no network requests of its own. |
 
 ## What's new (paste into the store's "What's new" field)
 
 ```
-Version 0.5.2 — every approval now means exactly what it says.
+Version 0.6.0 — every approval now means exactly what it says.
 
 • The prompt names the page and the tab it was asked for. If you switch tabs before
 answering, nothing runs — you are told, instead of the action landing somewhere else.

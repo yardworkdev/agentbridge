@@ -1,180 +1,453 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>AgentBridge</title>
-  <style>
-    body {
-      width: 300px;
-      margin: 0;
-      padding: 16px;
-      font-family: system-ui, -apple-system, sans-serif;
-      font-size: 13px;
-      color: #111827;
-      background: #ffffff;
-    }
-    h1 {
-      font-size: 15px;
-      margin: 0 0 12px 0;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    h1 img {
-      width: 20px;
-      height: 20px;
-    }
-    .status {
-      padding: 8px 10px;
-      border-radius: 6px;
-      margin-bottom: 12px;
-      font-weight: 600;
-    }
-    .status.connected {
-      background: #dcfce7;
-      color: #166534;
-    }
-    .status.disconnected {
-      background: #fee2e2;
-      color: #991b1b;
-    }
-    /* Until the service worker answers, the truth is unknown — saying
-       "disconnected" for that first second is a lie the person acts on. */
-    .status.checking {
-      background: #f3f4f6;
-      color: #4b5563;
-    }
-    .pending {
-      background: #fef3c7;
-      border: 1px solid #fde68a;
-      border-radius: 6px;
-      padding: 10px;
-      margin-bottom: 12px;
-    }
-    .pending .action {
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-    .pending .detail {
-      color: #4b5563;
-      word-break: break-word;
-    }
-    .pending .where {
-      font-weight: 600;
-      color: #111827;
-      margin-bottom: 4px;
-      word-break: break-all;
-    }
-    .pending .payload {
-      margin-top: 6px;
-      max-height: 120px;
-      overflow: auto;
-      background: #fffdf5;
-      border: 1px solid #fde68a;
-      border-radius: 4px;
-      padding: 6px;
-      font-family: ui-monospace, monospace;
-      font-size: 11px;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-    .row {
-      display: flex;
-      gap: 8px;
-      margin-top: 10px;
-    }
-    button {
-      flex: 1;
-      padding: 8px 0;
-      border: none;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    #approveBtn {
-      background: #16a34a;
-      color: #fff;
-    }
-    #denyBtn {
-      background: #dc2626;
-      color: #fff;
-    }
-    .meta {
-      margin-top: 12px;
-      color: #6b7280;
-      font-size: 12px;
-      line-height: 1.5;
-    }
-    .meta code {
-      display: block;
-      margin: 6px 0;
-      padding: 6px 8px;
-      background: #f3f4f6;
-      border-radius: 4px;
-      font-size: 11px;
-      word-break: break-all;
-      color: #111827;
-    }
-    .token {
-      margin-top: 12px;
-      border-top: 1px solid #e5e7eb;
-      padding-top: 10px;
-    }
-    .token label {
-      display: block;
-      font-size: 11px;
-      font-weight: 700;
-      color: #374151;
-      margin-bottom: 4px;
-    }
-    .token input {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 6px 8px;
-      border: 1px solid #d1d5db;
-      border-radius: 6px;
-      font-size: 12px;
-      font-family: monospace;
-      margin-bottom: 6px;
-    }
-    .token button {
-      padding: 6px 0;
-    }
-  </style>
-</head>
-<body>
-  <h1><img src="icons/icon48.png" alt="" /> AgentBridge</h1>
+  <head>
+    <meta charset="utf-8" />
+    <title>AgentBridge</title>
+    <style>
+      /* One accent, one voice. Ink for what you press, ochre for the thing that
+         needs you, grey for what is merely true. Nothing is coloured to look
+         alive: a dot that glows turns a settled state into an ongoing one. */
+      :root {
+        --ink: #17181a;
+        --ink-soft: #3d3f43;
+        --paper: #ffffff;
+        --wash: #faf9f7;
+        --rule: #e6e3de;
+        --rule-strong: #d6d2ca;
+        --muted: #6e6a64;
+        --accent: #a4540a;
+        --accent-wash: #fdf6ec;
+        --danger: #a11d1d;
+        --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        width: 360px;
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        font-size: 13.5px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+      }
 
-  <div id="status" class="status checking">Bridge: checking…</div>
+      /* ---------- header ---------- */
+      .bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 18px 12px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .brand img {
+        width: 18px;
+        height: 18px;
+        display: block;
+      }
+      .state {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 12px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .state .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--rule-strong);
+      }
+      .state[data-state="connected"] .dot {
+        background: #2f7d4f;
+      }
+      .state[data-state="disconnected"] .dot {
+        background: var(--danger);
+      }
+      .state[data-state="connected"],
+      .state[data-state="disconnected"] {
+        color: var(--ink-soft);
+      }
 
-  <div id="pendingWrap" class="pending" hidden>
-    <div class="action" id="pendingAction">—</div>
-    <div class="detail" id="pendingFrom">—</div>
-    <div class="where" id="pendingWhere" hidden>—</div>
-    <div class="detail" id="pendingDetail">—</div>
-    <div class="payload" id="pendingText" hidden></div>
-    <div class="row">
-      <button id="approveBtn">Approve</button>
-      <button id="denyBtn">Deny</button>
-    </div>
-  </div>
+      main {
+        padding: 0 18px 14px;
+      }
 
-  <div id="noPending" class="meta">No pending requests.</div>
+      /* ---------- a request: the only thing that matters when it exists ---------- */
+      .card {
+        border: 1px solid var(--rule);
+        border-left: 3px solid var(--accent);
+        background: var(--accent-wash);
+        padding: 13px 14px 14px;
+      }
+      .card .kicker {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--accent);
+        margin-bottom: 6px;
+        word-break: break-word;
+      }
+      .card h2 {
+        margin: 0 0 8px;
+        font-size: 16px;
+        line-height: 1.3;
+        letter-spacing: -0.01em;
+        font-weight: 650;
+      }
+      .where {
+        display: block;
+        font-size: 12px;
+        color: var(--ink-soft);
+        margin-bottom: 8px;
+        word-break: break-all;
+      }
+      .where .host {
+        /* An address is machine data: it is set in the same face as the agent's
+           name and the payload, so the eye can tell data from prose. */
+        font-family: var(--mono);
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--ink);
+      }
+      .where .rest {
+        color: var(--muted);
+      }
+      .detail {
+        margin: 0 0 8px;
+        color: var(--ink-soft);
+      }
+      .detail:empty {
+        display: none;
+      }
+      .payload {
+        /* Six whole lines at 18px: a half-visible line under the fold reads as a
+           broken box rather than as more to scroll. */
+        max-height: 108px;
+        overflow: auto;
+        background: var(--paper);
+        border: 1px solid var(--rule-strong);
+        padding: 8px 9px;
+        font-family: var(--mono);
+        font-size: 11.5px;
+        line-height: 18px;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .payloadMeta {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        color: var(--muted);
+        margin: 12px 0 5px;
+      }
+      .payload::-webkit-scrollbar {
+        width: 8px;
+      }
+      .payload::-webkit-scrollbar-thumb {
+        background: var(--rule-strong);
+      }
+      .payload::-webkit-scrollbar-track {
+        background: var(--wash);
+      }
+      .queue {
+        margin-top: 9px;
+        font-size: 12px;
+        color: var(--muted);
+      }
 
-  <div id="stateError" class="meta" hidden style="color:#b91c1c"></div>
-  <div id="queueNote" class="meta" hidden></div>
-  <div class="meta" id="approvals">Approvals: 0</div>
+      /* ---------- buttons: the safe choice is the loud one ---------- */
+      .actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 13px;
+      }
+      button {
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+        border-radius: 0;
+        transition: background-color 120ms ease, border-color 120ms ease,
+          color 120ms ease;
+      }
+      .primary {
+        flex: 1 1 auto;
+        padding: 10px 12px;
+        border: 1px solid var(--ink);
+        background: var(--ink);
+        color: #fff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+      }
+      .primary:hover {
+        background: #000;
+      }
+      .quiet {
+        flex: 0 0 auto;
+        padding: 10px 16px;
+        border: 1px solid var(--rule-strong);
+        background: var(--paper);
+        color: var(--ink-soft);
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+      }
+      .quiet:hover {
+        border-color: var(--ink-soft);
+        color: var(--ink);
+      }
+      button:focus-visible,
+      summary:focus-visible,
+      input:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      kbd {
+        font-family: var(--mono);
+        font-size: 10.5px;
+        line-height: 1;
+        padding: 3px 4px;
+        border: 1px solid currentColor;
+        opacity: 0.72;
+        font-weight: 500;
+      }
+      /* The shortcut has to be readable on the quiet button too, or it is a
+         decoration rather than a hint. */
+      .quiet kbd {
+        opacity: 0.9;
+      }
 
-  <div class="token">
-    <label for="tokenInput">Bridge token</label>
-    <input id="tokenInput" type="password" placeholder="paste token from bridge server" autocomplete="off" />
-    <button id="tokenSaveBtn">Save token</button>
-    <div class="meta">The bridge is one file on your machine:
-      <code>curl -O https://raw.githubusercontent.com/yardworkdev/agentbridge/v0.5.2/bridge-server.mjs</code>
-      then <code>node bridge-server.mjs</code>. It prints the token — paste it here.</div>
-  </div>
+      /* ---------- the quiet state ---------- */
+      .empty {
+        margin: 4px 0 2px;
+        color: var(--muted);
+        font-size: 12.5px;
+        max-width: 34ch;
+      }
+      .error {
+        margin: 10px 0 0;
+        color: var(--danger);
+        font-size: 12px;
+      }
 
-  <script src="popup.js"></script>
-</body>
+      /* ---------- setup: out of the way until it is needed ---------- */
+      details.setup {
+        margin-top: 14px;
+        border-top: 1px solid var(--rule);
+        padding-top: 12px;
+      }
+      details.setup > summary {
+        cursor: pointer;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--ink-soft);
+        list-style: none;
+      }
+      details.setup > summary::-webkit-details-marker {
+        display: none;
+      }
+      details.setup > summary::before {
+        content: "+";
+        display: inline-block;
+        width: 12px;
+        font-family: var(--mono);
+        color: var(--accent);
+      }
+      details.setup[open] > summary::before {
+        content: "\2212";
+      }
+      details.setup > summary:hover {
+        color: var(--ink);
+      }
+      .setupBody {
+        padding-top: 10px;
+      }
+      .setupBody p {
+        margin: 0 0 10px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+      .download {
+        display: block;
+        text-align: center;
+        padding: 9px 12px;
+        border: 1px solid var(--ink);
+        background: var(--ink);
+        color: #fff;
+        font-weight: 600;
+        text-decoration: none;
+        margin-bottom: 8px;
+      }
+      .download:hover {
+        background: #000;
+      }
+      .cmd {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        background: var(--wash);
+        border: 1px solid var(--rule);
+        padding: 8px 9px;
+        margin-bottom: 10px;
+      }
+      .cmd code {
+        flex: 1;
+        font-family: var(--mono);
+        font-size: 11px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-all;
+        color: var(--ink);
+      }
+      .cmd button {
+        border: 1px solid var(--rule-strong);
+        background: var(--paper);
+        font-size: 11px;
+        padding: 4px 7px;
+        color: var(--ink-soft);
+        flex: 0 0 auto;
+      }
+      .cmd button:hover {
+        border-color: var(--ink-soft);
+        color: var(--ink);
+      }
+      label.field {
+        display: block;
+        font-size: 11px;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 5px;
+      }
+      .fieldRow {
+        display: flex;
+        align-items: stretch;
+        gap: 8px;
+      }
+      input[type="password"] {
+        flex: 1;
+        min-width: 0;
+        padding: 8px 9px;
+        border: 1px solid var(--rule-strong);
+        border-radius: 0;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--ink);
+        background: var(--paper);
+      }
+      .fieldRow button {
+        border: 1px solid var(--ink);
+        background: var(--ink);
+        color: #fff;
+        font-size: 12px;
+        padding: 0 14px;
+        flex: 0 0 auto;
+      }
+      .tokenNote {
+        margin: 8px 0 0;
+        font-size: 11.5px;
+        color: var(--muted);
+      }
+
+      /* ---------- footer ---------- */
+      footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-top: 1px solid var(--rule);
+        padding: 9px 18px 10px;
+        font-size: 11.5px;
+        color: var(--muted);
+      }
+      footer a {
+        color: var(--muted);
+        text-decoration: none;
+        border-bottom: 1px solid var(--rule-strong);
+      }
+      footer a:hover {
+        color: var(--ink);
+        border-color: var(--ink);
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="bar">
+      <div class="brand"><img src="icons/icon48.png" alt="" /> AgentBridge</div>
+      <div class="state" id="status" data-state="checking">
+        <i class="dot"></i><span class="label">Checking</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="card" id="pendingWrap" hidden>
+        <div class="kicker" id="pendingFrom">agent</div>
+        <h2 id="pendingAction">Waiting for your decision</h2>
+        <span class="where" id="pendingWhere" hidden></span>
+        <p class="detail" id="pendingDetail"></p>
+        <div class="payloadMeta" id="payloadMeta" hidden>
+          <span>What will be done</span><span id="payloadSize"></span>
+        </div>
+        <div class="payload" id="pendingText" hidden></div>
+        <div class="queue" id="queueNote" hidden></div>
+        <div class="actions">
+          <button class="primary" id="approveBtn">Approve <kbd>A</kbd></button>
+          <button class="quiet" id="denyBtn">Deny <kbd>D</kbd></button>
+        </div>
+      </section>
+
+      <p class="empty" id="noPending">Nothing is waiting. Requests from your agents appear here.</p>
+      <div class="error" id="stateError" hidden></div>
+
+      <details class="setup" id="setup">
+        <summary>Connect a bridge</summary>
+        <div class="setupBody">
+          <p>
+            The bridge is one file, and it listens on 127.0.0.1 only. Download it, run it, then paste
+            the extension key it prints — once.
+          </p>
+          <a
+            class="download"
+            id="downloadBridge"
+            href="https://github.com/yardworkdev/agentbridge/releases/latest/download/bridge-server.mjs"
+            target="_blank"
+            rel="noreferrer"
+            >Download bridge-server.mjs</a
+          >
+          <div class="cmd">
+            <code id="cmdText">node bridge-server.mjs</code>
+            <button id="copyCmd" type="button">Copy</button>
+          </div>
+          <label class="field" for="tokenInput">Extension key</label>
+          <div class="fieldRow">
+            <input id="tokenInput" type="password" placeholder="paste from the bridge output" autocomplete="off" />
+            <button id="tokenSaveBtn" type="button">Save</button>
+          </div>
+          <p class="tokenNote" id="tokenNote">No key saved yet — the extension stays offline until you paste one.</p>
+        </div>
+      </details>
+    </main>
+
+    <footer>
+      <span id="approvals">0 approved here</span>
+      <a href="https://github.com/yardworkdev/agentbridge" target="_blank" rel="noreferrer">How it works</a>
+    </footer>
+
+    <script src="popup.js"></script>
+  </body>
 </html>

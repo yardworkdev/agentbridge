@@ -1,82 +1,122 @@
 /**
  * AgentBridge — popup UI.
- * Shows bridge status, pending request, approvals count.
- * Approve/Deny buttons message the service worker.
+ *
+ * Paints the state the service worker reports. Nothing here decides anything:
+ * the gate lives in the service worker, and this surface only asks.
+ *
+ * Three rules, learned the hard way:
+ *  - never state a fact before the worker answers (an honest "Checking" beats a
+ *    wrong "disconnected" that the person acts on);
+ *  - name the action in words the person can weigh, not in the protocol's words;
+ *  - say where the text is going before the button that sends it.
  */
 
 const $ = (id) => document.getElementById(id);
 
-function render(state) {
-  const statusEl = $("status");
-  if (state.connected) {
-    statusEl.textContent = "Bridge: connected";
-    statusEl.className = "status connected";
-  } else {
-    statusEl.textContent = "Bridge: disconnected";
-    statusEl.className = "status disconnected";
-  }
+/** Protocol action → what it will actually do to the page in front of you. */
+const IN_PLAIN_WORDS = {
+  readTab: "Read this tab",
+  readClipboard: "Read your clipboard",
+  writeClipboard: "Write to your clipboard",
+  inject: "Type into this tab",
+};
 
-  $("approvals").textContent = `Approvals: ${state.approvals}`;
+const STATUS_WORDS = {
+  connected: "Connected",
+  disconnected: "Offline",
+  checking: "Checking",
+};
+
+function paintStatus(state) {
+  const el = $("status");
+  const name = state.connected ? "connected" : "disconnected";
+  el.dataset.state = name;
+  el.querySelector(".label").textContent = STATUS_WORDS[name];
+}
+
+/** The page, with the host readable at a glance and the rest quiet. */
+function paintWhere(target) {
+  const el = $("pendingWhere");
+  const url = target?.url || "";
+  if (!url) {
+    el.hidden = true;
+    return;
+  }
+  let host = target.host || "";
+  let rest = "";
+  try {
+    const u = new URL(url);
+    host = u.host;
+    rest = u.pathname + u.search + u.hash;
+    if (rest === "/") rest = "";
+  } catch {
+    rest = url;
+  }
+  el.hidden = false;
+  el.textContent = "";
+  const strong = document.createElement("span");
+  strong.className = "host";
+  strong.textContent = host;
+  const quiet = document.createElement("span");
+  quiet.className = "rest";
+  quiet.textContent = rest || "";
+  el.append(strong, quiet);
+}
+
+function render(state) {
+  paintStatus(state);
+  $("approvals").textContent = `${state.approvals} approved here`;
 
   const errEl = $("stateError");
-  if (state.error) {
-    errEl.hidden = false;
-    errEl.textContent = state.error;
-  } else {
-    errEl.hidden = true;
-  }
+  errEl.hidden = !state.error;
+  if (state.error) errEl.textContent = state.error;
 
-  // A second request is not dropped: it waits its turn, and the person can see
-  // how many are behind this one.
-  const queueEl = $("queueNote");
+  // Setup stays collapsed unless it is the only thing the person could need, and
+  // it steps out of the way entirely while there is a decision to make.
+  const setup = $("setup");
+  setup.hidden = Boolean(state.pending);
+  if (!state.tokenSet && !setup.open) setup.open = true;
+  $("tokenNote").textContent = state.tokenSet
+    ? "A key is saved. Paste a new one only to rotate it."
+    : "No key saved yet — the extension stays offline until you paste one.";
+
+  // The queue is not a statistic: it is how many people are behind this one.
   const waiting = (state.queue?.length || 0) - 1;
-  if (waiting > 0) {
-    queueEl.hidden = false;
+  const queueEl = $("queueNote");
+  queueEl.hidden = !(state.pending && waiting > 0);
+  if (state.pending && waiting > 0) {
     queueEl.textContent = `${waiting} more request${waiting === 1 ? "" : "s"} waiting behind this one`;
-  } else {
-    queueEl.hidden = true;
   }
 
   const pending = state.pending;
-  if (pending) {
-    $("pendingWrap").hidden = false;
-    $("noPending").hidden = true;
-    $("pendingAction").textContent = `Action: ${pending.action}`;
-    $("pendingFrom").textContent = `Requested by agent: ${pending.from || "unknown"}`;
-    $("pendingDetail").textContent = pending.detail || "";
+  $("pendingWrap").hidden = !pending;
+  // On a first run the inbox has never had anything in it: saying "nothing is
+  // waiting" above the only thing that can fix that is noise in the best spot.
+  $("noPending").hidden = Boolean(pending) || (!state.tokenSet && !state.connected);
+  if (!pending) return;
 
-    // The page the action is about, and the whole payload. An approval is only
-    // meaningful if it says where the text goes and shows all of it.
-    const where = $("pendingWhere");
-    if (pending.target?.host || pending.target?.url) {
-      where.hidden = false;
-      where.textContent = `Page: ${pending.target.url || pending.target.host}`;
-      where.title = pending.target.url || "";
-    } else {
-      where.hidden = true;
-    }
-    const textEl = $("pendingText");
-    if (pending.text) {
-      textEl.hidden = false;
-      textEl.textContent = pending.text;
-    } else {
-      textEl.hidden = true;
-      textEl.textContent = "";
-    }
-  } else {
-    $("pendingWrap").hidden = true;
-    $("noPending").hidden = false;
-  }
+  $("pendingFrom").textContent = pending.from ? `from ${pending.from}` : "from an unnamed agent";
+  $("pendingAction").textContent = IN_PLAIN_WORDS[pending.action] || pending.action;
+  paintWhere(pending.target);
 
-  // Token status: show a hint if no token is configured yet.
-  const tokenInput = $("tokenInput");
-  const tokenSave = $("tokenSaveBtn");
-  if (!state.tokenSet) {
-    tokenSave.textContent = "Save token";
+  $("pendingDetail").textContent = pending.detail || "";
+
+  const textEl = $("pendingText");
+  const metaEl = $("payloadMeta");
+  const hasText = Boolean(pending.text);
+  textEl.hidden = !hasText;
+  metaEl.hidden = !hasText;
+  // The payload is shown once, in the field below. Repeating it inside the
+  // description made the person read the same sentence twice and trust neither.
+  if (hasText) $("pendingDetail").textContent = "";
+  if (hasText) {
+    textEl.textContent = pending.text;
+    $("payloadSize").textContent = `${pending.text.length.toLocaleString()} character${
+      pending.text.length === 1 ? "" : "s"
+    }`;
   } else {
-    tokenSave.textContent = "Update token";
+    textEl.textContent = "";
   }
-  tokenInput.placeholder = state.tokenSet ? "token saved — paste new one to rotate" : "paste token from bridge server";
 }
 
 function refresh() {
@@ -86,12 +126,12 @@ function refresh() {
   });
 }
 
-$("approveBtn").addEventListener("click", () => {
-  chrome.runtime.sendMessage({ type: "agentbridge:approve" }, () => refresh());
-});
-$("denyBtn").addEventListener("click", () => {
-  chrome.runtime.sendMessage({ type: "agentbridge:deny" }, () => refresh());
-});
+function decide(message) {
+  chrome.runtime.sendMessage({ type: message }, () => refresh());
+}
+
+$("approveBtn").addEventListener("click", () => decide("agentbridge:approve"));
+$("denyBtn").addEventListener("click", () => decide("agentbridge:deny"));
 
 $("tokenSaveBtn").addEventListener("click", () => {
   const token = $("tokenInput").value.trim();
@@ -102,11 +142,42 @@ $("tokenSaveBtn").addEventListener("click", () => {
   });
 });
 
+// The command is here to be copied, not retyped.
+$("copyCmd").addEventListener("click", async () => {
+  const text = $("cmdText").textContent.trim();
+  try {
+    await navigator.clipboard.writeText(text);
+    $("copyCmd").textContent = "Copied";
+  } catch {
+    $("copyCmd").textContent = "Select it";
+  }
+  setTimeout(() => ($("copyCmd").textContent = "Copy"), 1200);
+});
+
+// A decision should not need the mouse when the popup has the keyboard.
+document.addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const typing = e.target instanceof HTMLInputElement;
+  if ($("pendingWrap").hidden) return;
+  const key = e.key.toLowerCase();
+  if (key === "a" && !typing) {
+    e.preventDefault();
+    decide("agentbridge:approve");
+  } else if (key === "d" && !typing) {
+    e.preventDefault();
+    decide("agentbridge:deny");
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    decide("agentbridge:approve");
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    decide("agentbridge:deny");
+  }
+});
+
 // Live-update when the SW broadcasts a state change.
 chrome.runtime.onMessage.addListener((msg) => {
-  if (msg && msg.type === "agentbridge:stateChanged") {
-    refresh();
-  }
+  if (msg && msg.type === "agentbridge:stateChanged") refresh();
 });
 
 refresh();

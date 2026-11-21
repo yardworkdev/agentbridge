@@ -105,7 +105,14 @@ class WsConnection {
     this.onClose = null;
 
     socket.on("data", (chunk) => this._onData(chunk));
-    socket.on("close", () => this._close());
+    socket.on("close", (code, reason) => {
+      // Keep why it went away: 1006 means the process above dropped the socket
+      // (an MV3 worker being suspended looks exactly like this), 1000/1001 means
+      // the client closed it on purpose.
+      this.closeCode = code;
+      this.closeReason = String(reason || "").slice(0, 80);
+      this._close();
+    });
     socket.on("error", () => this._close());
   }
 
@@ -375,7 +382,11 @@ server.on("upgrade", (req, socket) => {
     for (const [id, c] of pendingByAgent) {
       if (c === conn) pendingByAgent.delete(id);
     }
-    log("disconnect", { role: conn.role || "unknown" });
+    log("disconnect", {
+      role: conn.role || "unknown",
+      code: conn.closeCode ?? null,
+      reason: conn.closeReason || "",
+    });
   };
 });
 

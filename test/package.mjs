@@ -74,18 +74,19 @@ if (!fs.existsSync(extensionZip)) {
   // The popup tells a stranger where to get the server; that URL has to exist for
   // this version, or the instructions are a dead end.
   const popup = readMember(extensionZip, 'popup.html');
-  const url = popup.match(/raw\.githubusercontent\.com\/[^"<\s]+bridge-server\.mjs/);
-  if (/id="status"[^>]*>Bridge: disconnected</.test(popup)) {
-    bad('popup.html paints "disconnected" before it knows anything — a fresh popup lies for a second');
-  } else if (!/id="status"[^>]*>Bridge: checking/.test(popup)) {
+  const url = popup.match(/https:\/\/[^"<\s]+bridge-server\.mjs/);
+  if (!/id="status"[^>]*data-state="checking"/.test(popup)) {
     bad('popup.html does not start in a "checking" state');
   } else {
-    ok('the popup starts at "checking…", not at a guess');
+    ok('the popup starts at "checking", not at a guess about the connection');
   }
 
   if (!url) bad('popup.html has no download command for the bridge server');
-  else if (url[0].includes(`/v${version}/`)) ok(`the popup points at v${version}: ${url[0]}`);
-  else bad(`the popup points at an older tag than ${version}: ${url[0]}`);
+  else if (url[0].includes('/releases/latest/download/')) {
+    ok(`the popup downloads the server from the latest release: ${url[0]}`);
+  } else if (url[0].includes(`/v${version}/`)) {
+    ok(`the popup points at v${version}: ${url[0]}`);
+  } else bad(`the popup points at a stale location: ${url[0]}`);
 }
 
 if (!fs.existsSync(bundleZip)) {

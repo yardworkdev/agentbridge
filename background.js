@@ -12,6 +12,9 @@ const APPROVAL_TIMEOUT_MS = 60_000; // 60s -> auto-deny
 const RECONNECT_BACKOFFS = [1000, 5000, 15000, 30000]; // then stays at 30s max
 const KEEPALIVE_ALARM = "agentbridge-keepalive";
 const APPROVALS_KEY = "approvals";
+
+/** Why the last approved action did not happen, so the popup can say it. */
+let lastFailure = "";
 const TOKEN_KEY = "bridgeToken";
 const MAX_TEXT_BYTES = 256 * 1024; // cap on writeClipboard/inject payloads
 
@@ -48,10 +51,20 @@ function broadcastStatus(state) {
  * Connect (or reconnect) to the bridge server.
  * Requires a configured token — the bridge rejects unauthenticated clients.
  */
+let connecting = false;
+
 async function connect() {
   if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+  // Two callers race here (the token save and storage.onChanged). The guard above
+  // is checked before the await, so both used to pass it and open a second socket;
+  // the server then dropped the first one and the person watched the dot go red
+  // for a second right after saving the key.
+  if (connecting) return;
+  connecting = true;
 
   const { [TOKEN_KEY]: token } = await chrome.storage.local.get(TOKEN_KEY);
+  connecting = false;
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
   if (!token) {
     // No token configured yet — tell the popup, retry later (keepalive
     // alarm + storage.onChanged will re-trigger connect()).
@@ -89,6 +102,8 @@ async function connect() {
   });
 
   ws.addEventListener("close", () => {
+    clearTimeout(authTimer);
+    authTimer = null;
     ws = null;
     broadcastStatus("disconnected");
     updatePopup();
@@ -143,6 +158,11 @@ async function verifyServerHello(msg) {
     return;
   }
   pendingNonce = null;
+  // The timer that closes an unanswered handshake must not fire on an answered
+  // one: it kept killing a healthy socket three seconds after it opened, and the
+  // person saw "the bridge did not prove it is AgentBridge" while it was working.
+  clearTimeout(authTimer);
+  authTimer = null;
   connectionError = "";
   sendToBridge({ type: "hello", role: "extension", name: "AgentBridge", token });
   broadcastStatus("connected");
@@ -150,6 +170,8 @@ async function verifyServerHello(msg) {
 }
 
 function failConnection(message) {
+  clearTimeout(authTimer);
+  authTimer = null;
   connectionError = message;
   console.error("[trace] " + message);
   updatePopup();
@@ -377,11 +399,15 @@ function approvePending() {
 
   executeAction(req)
     .then((data) => {
-      incrementApprovals();
+      lastFailure = "";
+      incrementApprovals().then(updatePopup);
       sendResult(req.id, true, data);
     })
     .catch((err) => {
-      sendResult(req.id, false, err?.message || "execution failed");
+      // The agent is told what went wrong; so is the person who pressed Approve.
+      lastFailure = err?.message || "the action could not be done";
+      sendResult(req.id, false, lastFailure);
+      updatePopup();
     });
 }
 
@@ -646,7 +672,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       chrome.storage.local.get([APPROVALS_KEY, TOKEN_KEY]).then(({ [APPROVALS_KEY]: approvals = 0, [TOKEN_KEY]: token = "" }) => {
         sendResponse({
           connected: !!(ws && ws.readyState === WebSocket.OPEN && !connectionError),
-          error: connectionError,
+          error: connectionError || (headRequest() ? "" : lastFailure),
           tokenSet: !!token,
           pending: headRequest()
             ? {
