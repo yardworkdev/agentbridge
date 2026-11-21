@@ -87,7 +87,7 @@ an approved action needs it. No new permissions were requested.
 
 - **No new permissions since 0.3.0.** The permission list and host permissions are
   unchanged; the `<all_urls>` content script that shipped in 0.3.0 is **removed** in
-  0.5.1, so the extension's footprint on pages is smaller than in the version already
+  0.5.2, so the extension's footprint on pages is smaller than in the version already
   published.
 - The bridge is a local Node process on `127.0.0.1:8788` that the user starts
   themselves; the extension never opens a listening socket and never contacts a remote

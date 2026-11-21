@@ -30,7 +30,7 @@ python3 -m zipfile -c dist/agentbridge.zip manifest.json background.js content.j
 
 ## Pending — the store upload (owner's step)
 
-The published listing is **0.3.0 (updated 21 August 2026)**; the repo is 0.5.1. Everything
+The published listing is **0.3.0 (updated 21 August 2026)**; the repo is 0.5.2. Everything
 needed for the update is in this repo, so this is one sitting in the developer dashboard:
 
 1. Download the release asset `agentbridge-0.5.2.zip` from the v0.5.2 release — built by
