@@ -50,10 +50,10 @@ curl -LO https://github.com/yardworkdev/agentbridge/releases/latest/download/bri
 node bridge-server.mjs
 ```
 
-1. **Install the extension** (store, or load the unpacked folder)
-   - Open `chrome://extensions`.
-   - Enable **Developer mode** (top right).
-   - Click **Load unpacked** and select the `agentbridge` folder.
+1. **Install the extension** — from the Chrome Web Store, or unpacked while developing:
+   - **Store:** use the install link at the top of this page.
+   - **Unpacked:** open `chrome://extensions`, enable **Developer mode** (top right),
+     click **Load unpacked** and select this folder.
 2. **Start the bridge server**
    - Requires Node.js 20 or newer. No dependencies to install.
    - Run: `node bridge-server.mjs`
@@ -218,6 +218,8 @@ background.js          — service worker: WS client + approval gate + executors
 content.js             — clipboard/inject helpers
 popup.html, popup.js   — approval + status UI
 icons/                 — icon16/48/128
+pack.mjs               — builds the store ZIP and the bundle: `node pack.mjs`
+test/package.mjs       — checks both built ZIPs the way Chrome does
 test/agent-client.mjs  — E2E agent client
 test/e2e.mjs           — orchestrator: server + Chrome + assertions
 test/RESULTS.md        — PASS/FAIL per scenario
@@ -257,7 +259,7 @@ who pick up this codebase. Read it before changing anything.
 # 1. Server (no install needed)
 node bridge-server.mjs          # ws://127.0.0.1:8788
 
-# 2. Server self-test (6/6)
+# 2. Server self-test (8/8)
 node test/server-self-test.mjs
 
 # 3. Demo agent (sends a readTab action; approve via popup)
@@ -288,8 +290,10 @@ E2E_SHOT_DIR=/tmp/ab-shots timeout 400 xvfb-run -a node test/e2e.mjs
   Chrome ships a built-in "Contextual Tasks" component extension; never
   first-match on extension id.
 - Kill orphans by port (`fuser -k <port>/tcp`), never `pkill -f` patterns that
-  match the harness's own cmdline. `zip` is absent in the sandbox — build the
-  package with `python3 -m zipfile -c dist/agentbridge.zip <files>`.
+  match the harness's own cmdline.
+- Build the store package with `node pack.mjs`, then check it the way Chrome does with
+  `node test/package.mjs`. Never zip individual files by hand (`python3 -m zipfile -c`
+  on a file list flattens `icons/…` into the archive root and Chrome refuses that ZIP).
 
 ### Extension architecture notes
 
@@ -309,11 +313,11 @@ E2E_SHOT_DIR=/tmp/ab-shots timeout 400 xvfb-run -a node test/e2e.mjs
 - Tests: extend `test/e2e.mjs` with the new scenario and keep 9/9 (or more) green;
   keep `test/RESULTS.md` in sync.
 - Document new actions in README's action table + PROTOCOL.md.
-- Verify the store package: rebuild `dist/agentbridge.zip` and confirm the file
-  list matches the manifest (icons, popup, background, content, README).
+- Verify the store package: run `node pack.mjs`, then `node test/package.mjs` and confirm
+  it PASSes (every path `manifest.json` names is present, no server file, no keys).
 
 ### Definition of done
 
-Server self-test 6/6 **and** full E2E green (exit 0) **and** evidence updated in
+Server self-test 8/8 **and** full E2E green (exit 0) **and** evidence updated in
 `businesses/yardwork/work/t4-build/evidence/` when working from the workspace copy.
 Never claim green without running the suite.
