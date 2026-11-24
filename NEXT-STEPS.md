@@ -2,6 +2,8 @@
 
 ## Status
 
+- **v0.6.0.** Current GitHub release and extension manifest. Download the extension-only store asset below; do not upload an older package or the bridge bundle.
+
 - **v0.5.1.** the same product as 0.5.0, packaged after the copy pass — the two
   most important buttons no longer carry emoji — so the store upload matches the repo.
 - **v0.5.0.** Two secrets instead of one, a server that proves itself before the key is sent, keys persisted in `~/.agentbridge/keys.json` (600), approvals queued with a badge, and no always-on content script.
@@ -22,26 +24,37 @@ STRICT=1 node test/stress-test.mjs  # concurrency + hostile input, 18/18
 E2E_SHOT_DIR=/tmp/shots timeout 400 xvfb-run -a node test/e2e.mjs  # 9/9 (real Chrome)
 ```
 
-Build the store package:
+Build the store package from the current source tree:
 
 ```bash
-python3 -m zipfile -c dist/agentbridge.zip manifest.json background.js content.js popup.html popup.js icons/icon16.png icons/icon48.png icons/icon128.png README.md STORE-LISTING.md
+node pack.mjs
+node test/package.mjs
 ```
+
+Use the path printed by the packer. Do not zip individual icon files with
+`python3 -m zipfile`: that flattens their paths and Chrome cannot load the result.
 
 ## Pending — the store upload (owner's step)
 
-The published listing is **0.3.0 (updated 21 August 2026)**; the repo is 0.5.2. Everything
-needed for the update is in this repo, so this is one sitting in the developer dashboard:
+The current GitHub package is **0.6.0**. Store submission remains the owner's
+step; this document does not establish the live store's current version.
 
-1. Download the release asset `agentbridge-0.5.2.zip` from the v0.5.2 release — built by
-   `node pack.mjs` and checked by `node test/package.mjs`, which reads the archive the way
-   Chrome does (the 0.5.1 zip put the icons in the wrong folder and Chrome refused to load it)
-   (sha256 `2a0ad571425fecc19e394dca82e5a2650e787d47fa8efa80361e5a96d56d7839`).
-2. Upload it as the new package.
-3. Paste the **What's new** block from `STORE-LISTING.md`.
-4. Upload `shots/store/01-connected.png`, `02-approval.png`, `03-executed.png` (1280×800).
-5. Submit for review. No new permissions are requested; the always-on content script that
-   shipped in 0.3.0 is gone, so the review surface is smaller than the published version.
+1. Download [agentbridge-0.6.0.zip](https://github.com/yardworkdev/agentbridge/releases/download/v0.6.0/agentbridge-0.6.0.zip).
+   This is the extension-only asset, **not** `agentbridge-0.6.0-bundle.zip`.
+   SHA-256: `a0546a9dcb79735ae0f635b44724100723bafb886a85450bb5b3abe104b02b25`.
+   The downloaded manifest declares `0.6.0`; every member matches source commit
+   `7d0d78520d1c8013dd0ef6ca507cc261bb0f4a64` and every manifest-referenced icon, worker and popup exists.
+2. Upload that ZIP as the new package. Do not upload 0.5.1 or 0.5.2.
+3. Paste the **What's new** block from the v0.6.0 `STORE-LISTING.md`.
+4. Upload `shots/store/01-approval.png`, `02-setup.png`, `03-done.png`,
+   in that order (1280×800), from the same source commit.
+5. Review the store's permission/privacy fields and submit for review. This
+   handoff does not submit anything or grant new publication permission.
+
+The local bridge is still required for use. `bridge-server.mjs` is available
+separately on the v0.6.0 release; it does not belong in the store upload.
+This handoff checks packaging and screenshot dimensions, not a new browser
+behavior test. The direct v0.6.0 browser/liveness proof remains separate.
 
 ## Roadmap ideas
 
