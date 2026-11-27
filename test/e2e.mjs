@@ -42,6 +42,11 @@ const CHROME = process.env.CHROME_BIN || "/tmp/chrome-cft/chrome/linux-152.0.797
 const PROFILE = "/tmp/agentbridge-chrome-profile";
 
 const RESULTS_PATH = path.join(__dirname, "RESULTS.md");
+
+// The run's own date, so RESULTS.md can never claim a day it was not produced on.
+// en-CA is the local-time YYYY-MM-DD spelling.
+const RUN_DAY = new Date().toLocaleDateString("en-CA");
+const RUN_STAMP = new Date().toString();
 const results = []; // {name, ok, detail}
 
 function record(name, ok, detail = "") {
@@ -273,11 +278,15 @@ async function findAgentBridgeSw() {
 }
 
 async function main() {
+  let exitCode = 0;
   // ---- 0. Pre-flight: hermetic environment ----
-  // Kill any stale bridge server AND leftover Chrome from a crashed run.
-  // (A crashed run's unhandled rejection can bypass the finally cleanup,
-  // leaving the server holding 8788 and/or Chrome holding 9223 — the stale
-  // Chrome then answers /json/list with ITS targets and breaks the run.)
+  // Kill any stale bridge server AND leftover Chrome before starting.
+  // Needed because a rejected promise thrown out of main() skips the finally
+  // cleanup below, and that run then leaves the server holding 8788 and/or
+  // Chrome holding 9223 — the stale Chrome answers /json/list with ITS targets
+  // and breaks the next run. (Until 2026-11-27 the healthy path leaked too:
+  // a process.exit() inside the try ended the process before the finally ever
+  // ran, so every passing run left a bridge and a browser behind.)
   try {
     const busy = await new Promise((res) => {
       const probe = net.createConnection({ host: "127.0.0.1", port: SERVER_PORT, timeout: 500 });
@@ -621,8 +630,9 @@ async function main() {
 
     // ---- 9. Write RESULTS.md ----
     const lines = [
-      "# AgentBridge E2E Results — 2026-08-14",
+      `# AgentBridge E2E Results — ${RUN_DAY}`,
       "",
+      `Run at: ${RUN_STAMP}`,
       `Chrome: ${CHROME}`,
       `Extension: ${EXT_DIR}`,
       `Bridge: ${BRIDGE_URL}`,
@@ -638,7 +648,12 @@ async function main() {
 
     const allPass = results.every((r) => r.ok);
     console.log(`\nE2E: ${results.filter((r) => r.ok).length}/${results.length} passed`);
-    process.exit(allPass ? 0 : 1);
+    // Deliberately no process.exit() here: it would terminate the process
+    // immediately and the finally block below — the only thing that closes the
+    // test page server, the agent socket, Chrome and the bridge — would never
+    // run. A passing run used to leave a bridge on 8788 and four Chrome
+    // processes behind it.
+    exitCode = allPass ? 0 : 1;
   } finally {
     console.log("\n=== SERVER LOG ===");
     console.log(serverOut.trim() || "(empty)");
@@ -654,13 +669,16 @@ async function main() {
     try { spawn("pkill", ["-f", "remote-debugging-port=9223"]); } catch {}
     await sleep(300);
   }
+  // The exit code is decided inside the try, but the process only ends here,
+  // after the finally block has released the port, the sockets and the browser.
+  process.exit(exitCode);
 }
 
 main().catch((e) => {
   console.log(`E2E FAIL: ${e.message}`);
   fs.writeFileSync(
     RESULTS_PATH,
-    ["# AgentBridge E2E Results — 2026-08-14", "", "**HARNESS FAILED**", "", `\`\`\`\n${e.message}\n\`\`\``, ""].join("\n")
+    [`# AgentBridge E2E Results — ${RUN_DAY}`, "", `Run at: ${RUN_STAMP}`, "", "**HARNESS FAILED**", "", `\`\`\`\n${e.message}\n\`\`\``, ""].join("\n")
   );
   process.exit(1);
 });
